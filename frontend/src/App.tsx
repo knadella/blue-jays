@@ -6,6 +6,17 @@ import { ScheduleHeatmap } from "./components/ScheduleHeatmap";
 import { TeamRatingCharts } from "./components/TeamRatingCharts";
 import { getTeamAbbrev } from "./teamMetadata";
 
+function ordinal(value: number) {
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
+  switch (value % 10) {
+    case 1: return `${value}st`;
+    case 2: return `${value}nd`;
+    case 3: return `${value}rd`;
+    default: return `${value}th`;
+  }
+}
+
 const LEAGUE_DIVISIONS: Record<string, string[]> = {
   AL: ["East", "Central", "West"],
   NL: ["East", "Central", "West"],
@@ -31,19 +42,30 @@ export default function App() {
   const prefetchInFlightRef = useRef(new Set<string>());
 
   const divisionKey = `${league} ${division}`;
-  const divisionTeams = DIVISION_TEAMS[divisionKey] ?? [];
+  const standings = dashboard?.division_standings?.[divisionKey];
+  const divisionTeams = standings?.length
+    ? standings.map((s) => s.team)
+    : DIVISION_TEAMS[divisionKey] ?? [];
   const displayedTeam = dashboard?.favorite_team ?? team;
+
+  const getFirstPlaceTeam = (divKey: string): string => {
+    const fallback = DIVISION_TEAMS[divKey]?.[0] ?? "";
+    if (dashboard?.division_standings?.[divKey]?.length) {
+      return dashboard.division_standings[divKey][0].team;
+    }
+    return fallback;
+  };
 
   const handleLeagueChange = (next: string) => {
     setLeague(next);
     const firstDiv = LEAGUE_DIVISIONS[next][0];
     setDivision(firstDiv);
-    setTeam(DIVISION_TEAMS[`${next} ${firstDiv}`][0]);
+    setTeam(getFirstPlaceTeam(`${next} ${firstDiv}`));
   };
 
   const handleDivisionChange = (next: string) => {
     setDivision(next);
-    setTeam(DIVISION_TEAMS[`${league} ${next}`][0]);
+    setTeam(getFirstPlaceTeam(`${league} ${next}`));
   };
 
   useEffect(() => {
@@ -176,12 +198,32 @@ export default function App() {
 
       {dashboard && (
         <>
+          <div className="kpi-row">
+            <div className="kpi-tile">
+              <span className="kpi-value">
+                {dashboard.team_simulation.actual_wins}–{dashboard.team_simulation.actual_losses}
+              </span>
+              <span className="kpi-label">Record</span>
+            </div>
+            <div className="kpi-tile">
+              <span className="kpi-value">
+                {ordinal(dashboard.team_simulation.actual_division_place)}
+              </span>
+              <span className="kpi-label">{dashboard.team_simulation.division}</span>
+            </div>
+            <div className="kpi-tile">
+              <span className="kpi-value">{dashboard.meta.games_completed}</span>
+              <span className="kpi-label">Games Played</span>
+            </div>
+            <div className="kpi-tile">
+              <span className="kpi-value">{dashboard.meta.games_remaining}</span>
+              <span className="kpi-label">Remaining</span>
+            </div>
+          </div>
+
           <section className="section-card chart-card">
             <div className="section-header">
               <h2>Win Projections</h2>
-              <span>
-                {dashboard.meta.games_completed} completed, {dashboard.meta.games_remaining} remaining
-              </span>
             </div>
             <CumulativeWinsChart
               actualPoints={dashboard.team_simulation.actual_points}

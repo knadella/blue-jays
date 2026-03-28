@@ -21,6 +21,9 @@ class SimulationDensityCell(BaseModel):
 class TeamSimulationView(BaseModel):
     team: str
     division: str
+    actual_wins: int = 0
+    actual_losses: int = 0
+    actual_division_place: int = 1
     actual_points: list[WinPoint] = Field(default_factory=list)
     simulation_density: list[SimulationDensityCell] = Field(default_factory=list)
     projected_final_wins: int
@@ -53,12 +56,18 @@ class ScheduleGame(BaseModel):
     opponent_strength: float
 
 
+class DivisionStanding(BaseModel):
+    team: str
+    projected_wins: int
+
+
 class DashboardResponse(BaseModel):
     season: int
     favorite_team: str
     team_simulation: TeamSimulationView
     team_ratings: TeamRatings
     remaining_schedule: list[ScheduleGame] = Field(default_factory=list)
+    division_standings: dict[str, list[DivisionStanding]] = Field(default_factory=dict)
     meta: DashboardMeta
 
 

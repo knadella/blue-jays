@@ -14,6 +14,7 @@ from data_source.mlb_api import build_record, completed_game_rows, fetch_schedul
 from ..schemas import (
     DashboardMeta,
     DashboardResponse,
+    DivisionStanding,
     ScheduleGame,
     SimulationDensityCell,
     TeamRating,
@@ -177,14 +178,26 @@ def _build_simulation_views(
     density_by_team = {team: [] for team in snapshot.teams}
 
     if not remaining_games:
+        end_of_season_place: dict[str, int] = {}
+        for division_teams in DIVISIONS.values():
+            ranked = sorted(
+                division_teams,
+                key=lambda t: actual_record.get(t, {}).get("w", 0),
+                reverse=True,
+            )
+            for place, t in enumerate(ranked, start=1):
+                end_of_season_place[t] = place
         return {
             team: TeamSimulationView(
                 team=team,
                 division=TEAM_TO_DIVISION[team],
+                actual_wins=actual_record.get(team, {}).get("w", 0),
+                actual_losses=actual_record.get(team, {}).get("l", 0),
+                actual_division_place=end_of_season_place[team],
                 actual_points=actual_points_by_team[team],
                 simulation_density=[],
                 projected_final_wins=starting_wins_by_team.get(team, 0),
-                projected_division_place=1,
+                projected_division_place=end_of_season_place[team],
                 playoff_probability=0.0,
             )
             for team in snapshot.teams
@@ -256,18 +269,20 @@ def _build_simulation_views(
     }
 
     projected_division_place: dict[str, int] = {}
-    for division_name, division_teams in DIVISIONS.items():
-        division_team_indices = np.array([team_to_idx[name] for name in division_teams], dtype=int)
-        noisy_division_wins = cumulative_wins[:, division_team_indices] + rng.uniform(
-            0,
-            0.01,
-            size=(n_sims, len(division_team_indices)),
+    for division_teams in DIVISIONS.values():
+        ranked = sorted(division_teams, key=lambda t: projected_final_wins[t], reverse=True)
+        for place, team_name in enumerate(ranked, start=1):
+            projected_division_place[team_name] = place
+
+    actual_division_place: dict[str, int] = {}
+    for division_teams in DIVISIONS.values():
+        ranked = sorted(
+            division_teams,
+            key=lambda t: actual_record.get(t, {}).get("w", 0),
+            reverse=True,
         )
-        division_order = np.argsort(-noisy_division_wins, axis=1)
-        for local_idx, team_name in enumerate(division_teams):
-            places = np.argmax(division_order == local_idx, axis=1) + 1
-            place_counts = np.bincount(places, minlength=len(division_team_indices) + 1)
-            projected_division_place[team_name] = int(np.argmax(place_counts[1:]) + 1)
+        for place, team_name in enumerate(ranked, start=1):
+            actual_division_place[team_name] = place
 
     noisy_all_wins = cumulative_wins + rng.uniform(0, 0.01, size=cumulative_wins.shape)
     division_indices = {
@@ -308,6 +323,9 @@ def _build_simulation_views(
         team_name: TeamSimulationView(
             team=team_name,
             division=TEAM_TO_DIVISION[team_name],
+            actual_wins=actual_record.get(team_name, {}).get("w", 0),
+            actual_losses=actual_record.get(team_name, {}).get("l", 0),
+            actual_division_place=actual_division_place[team_name],
             actual_points=actual_points_by_team[team_name],
             simulation_density=density_by_team[team_name],
             projected_final_wins=projected_final_wins[team_name],
@@ -348,6 +366,15 @@ def _build_all_dashboard_payloads_uncached(
     remaining_counts = _build_team_game_counts(remaining)
     generated_at = date.today().isoformat()
 
+    division_standings_by_div: dict[str, list[DivisionStanding]] = {}
+    for div_name, div_teams in DIVISIONS.items():
+        division_standings_by_div[div_name] = sorted(
+            [DivisionStanding(team=t, projected_wins=team_simulations[t].projected_final_wins)
+             for t in div_teams],
+            key=lambda s: s.projected_wins,
+            reverse=True,
+        )
+
     payloads: dict[str, DashboardResponse] = {}
     for team_name in snapshot.teams:
         payloads[team_name] = DashboardResponse(
@@ -356,6 +383,7 @@ def _build_all_dashboard_payloads_uncached(
             team_simulation=team_simulations[team_name],
             team_ratings=team_ratings,
             remaining_schedule=remaining_schedule_views[team_name],
+            division_standings=division_standings_by_div,
             meta=DashboardMeta(
                 generated_at=generated_at,
                 games_completed=completed_counts[team_name],

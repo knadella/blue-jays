@@ -137,7 +137,7 @@ export function CumulativeWinsChart({
       .nice()
       .range([height - margin.bottom, margin.top]);
     const statX = x(new Date(`${season}-03-16`));
-    const statY = y(80);
+    const statY = margin.top + 16;
     const accentColor = getTeamColor(team);
     const teamAbbrev = getTeamAbbrev(team);
     const teamLogoPath = getTeamLogoPath(team);

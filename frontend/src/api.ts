@@ -12,6 +12,9 @@ export interface SimulationDensityCell {
 export interface TeamSimulationView {
   team: string;
   division: string;
+  actual_wins: number;
+  actual_losses: number;
+  actual_division_place: number;
   actual_points: WinPoint[];
   simulation_density: SimulationDensityCell[];
   projected_final_wins: number;
@@ -36,12 +39,18 @@ export interface ScheduleGame {
   opponent_strength: number;
 }
 
+export interface DivisionStanding {
+  team: string;
+  projected_wins: number;
+}
+
 export interface DashboardResponse {
   season: number;
   favorite_team: string;
   team_simulation: TeamSimulationView;
   team_ratings: TeamRatings;
   remaining_schedule: ScheduleGame[];
+  division_standings: Record<string, DivisionStanding[]>;
   meta: {
     generated_at: string;
     games_completed: number;
