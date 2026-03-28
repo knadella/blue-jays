@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import threading
 from typing import Annotated, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import ADMIN_API_KEY, ALL_TEAMS, CORS_ORIGINS, DEFAULT_SEASON
+from config import (
+    ADMIN_API_KEY,
+    ALL_TEAMS,
+    CORS_ORIGINS,
+    DEFAULT_SEASON,
+    SKIP_DASHBOARD_WARMUP,
+)
 
 from .schemas import (
     BaselineMetrics,
@@ -23,9 +31,11 @@ from .schemas import (
     WalkForwardResponse,
     WalkForwardWindow,
 )
-from .services.dashboard import build_dashboard_payload
+from .services.dashboard import build_dashboard_payload, warm_dashboard_cache
 from .services.evaluation import build_evaluation, build_walk_forward_evaluation
 from .services.refresh import refit_model, refresh_actuals
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="MLB Forecast API", version="2.0.0")
 app.add_middleware(
@@ -35,6 +45,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _start_dashboard_warmup() -> None:
+    """Fit or load the model after boot so the first browser hit is not stuck on MCMC."""
+
+    if SKIP_DASHBOARD_WARMUP:
+        return
+
+    def run() -> None:
+        try:
+            warm_dashboard_cache(DEFAULT_SEASON)
+            logger.info("Dashboard cache warmed for season %s", DEFAULT_SEASON)
+        except Exception:
+            logger.exception(
+                "Dashboard warmup failed; first GET /api/dashboard will fit on demand.",
+            )
+
+    threading.Thread(target=run, daemon=True, name="dashboard-warmup").start()
 
 
 def verify_admin_key(

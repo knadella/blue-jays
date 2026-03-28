@@ -430,6 +430,11 @@ def clear_dashboard_cache() -> None:
     _build_all_dashboard_payloads_cached.cache_clear()
 
 
+def warm_dashboard_cache(season: int = DEFAULT_SEASON) -> None:
+    """Materialize the LRU dashboard cache for *season* (may run a long MCMC fit)."""
+    _build_all_dashboard_payloads_cached(season)
+
+
 def build_dashboard_payload(
     season: int,
     favorite_team: str,

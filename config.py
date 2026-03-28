@@ -20,6 +20,13 @@ POSTERIOR_RETENTION = 2 / 3
 # If set, POST /api/admin/* requires header X-Admin-Key: <value> (recommended in production).
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip() or None
 
+# If true, do not background-warm the dashboard on API startup (local dev only).
+SKIP_DASHBOARD_WARMUP = os.getenv("SKIP_DASHBOARD_WARMUP", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
 def _normalize_cors_origin(raw: str) -> str:
     """Strip whitespace/quotes and reduce to scheme://host[:port] (no path).
 
