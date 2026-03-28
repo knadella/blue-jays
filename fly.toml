@@ -22,8 +22,8 @@ primary_region = "iad"
   min_machines_running = 1
 
   [http_service.http_options]
-    # Weekly refit can run two MCMC phases; keep above GitHub Actions curl max-time.
-    idle_timeout = 3600
+    # Fly caps this at 900s; longer refits need a different pattern (e.g. SSH/cron on the machine).
+    idle_timeout = 900
 
   [[http_service.checks]]
     interval = "30s"
