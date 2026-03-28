@@ -95,6 +95,42 @@ npm run dev
 
 The frontend expects the API at `http://localhost:8000`.
 
+## Deploy frontend (GitHub Pages)
+
+The workflow **Deploy frontend to GitHub Pages** (`.github/workflows/deploy-github-pages.yml`) builds on every push to `main` that touches `frontend/` and publishes a **project site** at:
+
+`https://<your-github-username>.github.io/<repo-name>/`
+
+(e.g. `https://knadella.github.io/blue-jays/`).
+
+### One-time setup
+
+1. **Repository secret:** add **`VITE_API_URL`** = your public API base (same idea as Fly: `https://<app>.fly.dev`, no trailing slash). Example:
+
+   ```bash
+   printf '%s' 'https://YOUR-APP.fly.dev' | gh secret set VITE_API_URL -R <owner>/<repo>
+   ```
+
+2. **Pages:** **Settings → Pages → Build and deployment → Source:** choose **GitHub Actions** (not “Deploy from a branch”).
+
+3. **CORS on Fly:** allow the Pages origin (scheme + host only, no path):
+
+   ```bash
+   fly secrets set CORS_ORIGINS="https://YOURUSERNAME.github.io"
+   ```
+
+   If you already set `CORS_ORIGINS`, merge origins as a comma-separated list.
+
+4. Push a change under `frontend/` or run **Actions → Deploy frontend to GitHub Pages → Run workflow**.
+
+Local preview of a Pages-style build:
+
+```bash
+cd frontend && VITE_BASE_PATH=/blue-jays/ VITE_API_URL=https://your-app.fly.dev npm run build && npx vite preview --base /blue-jays/
+```
+
+(Replace `blue-jays` with your repo name if different.)
+
 ## Scheduled refresh (live app)
 
 The app separates **daily actuals refresh** (fast, updates game scores) from
@@ -230,6 +266,7 @@ The repo includes a **`Dockerfile`** and **`fly.toml`**: Python 3.11, **2GB RAM*
 - React + D3 dashboard
 - admin endpoints, GitHub Actions schedules, optional `ADMIN_API_KEY`
 - Fly.io `Dockerfile` + `fly.toml` for production API hosting
+- GitHub Pages deploy workflow for the Vite frontend (`VITE_API_URL` + `VITE_BASE_PATH`)
 
 ## Legacy: Statcast analysis
 
