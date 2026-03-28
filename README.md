@@ -134,9 +134,22 @@ Optional: `MLB_SEASON=2026`, `CURL_MAX_TIME=900` for long refits.
 
 Workflows in `.github/workflows/` call your deployed API on a schedule.
 
-1. In the repo: **Settings → Secrets and variables → Actions**, add:
+1. **Secrets** (UI or CLI):
    - `API_BASE_URL` — base URL only, no trailing slash (e.g. `https://mlb-api.fly.dev`)
-   - `ADMIN_API_KEY` — same value as the server’s `ADMIN_API_KEY` (omit only if the server does not enforce the key)
+   - `ADMIN_API_KEY` — same random string as the server’s `ADMIN_API_KEY` env (omit only if the server does not enforce the key)
+
+   From the repo root, after you know your public API URL (GitHub CLI logged in):
+
+   ```bash
+   ./scripts/set_github_actions_secrets.sh https://your-api.example.com
+   ```
+
+   Pass your existing key as a second argument if you already set `ADMIN_API_KEY` and do not want to rotate it:
+
+   ```bash
+   ./scripts/set_github_actions_secrets.sh https://your-api.example.com "$ADMIN_API_KEY"
+   ```
+
 2. Enable Actions; workflows also support **Run workflow** manually.
 
 ### systemd (Linux VPS)

@@ -33,6 +33,8 @@ frontend/.vite/
 
 # Environment variables
 .env
+.env.local
+.env.production.local
 
 # IDE
 .idea/
