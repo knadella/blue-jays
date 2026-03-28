@@ -1,6 +1,7 @@
 # Daily: re-fetch MLB scores, clear caches (no MCMC). Requires a publicly reachable API.
 #
 # Secrets: API_BASE_URL (required), ADMIN_API_KEY (required if your API sets ADMIN_API_KEY).
+# API_BASE_URL must be exactly like: https://my-app.fly.dev  (no quotes, spaces, or newlines)
 # Test: Actions → this workflow → Run workflow.
 # Schedules only run on the repository default branch.
 name: Schedule — refresh actuals
@@ -15,28 +16,53 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate configuration
+      - name: Validate and normalize configuration
         env:
           BASE: ${{ secrets.API_BASE_URL }}
           KEY: ${{ secrets.ADMIN_API_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${BASE}" ]; then
-            echo "::error::Repository secret API_BASE_URL is not set. Add it under Settings → Secrets → Actions (no trailing slash), e.g. https://my-app.fly.dev"
-            exit 1
-          fi
-          if [ -z "${KEY}" ]; then
-            echo "::warning::ADMIN_API_KEY secret is empty. If your Fly app has ADMIN_API_KEY set, this job will get HTTP 401 — add the same value as a repository secret."
-          fi
+          python3 << 'PY'
+          import os
+          from urllib.parse import urlparse
+
+          raw_base = os.environ.get("BASE", "")
+          raw_key = os.environ.get("KEY", "")
+
+          def clean(s: str) -> str:
+              s = s.strip().strip("\ufeff").strip('"').strip("'")
+              s = s.replace("\r", "").replace("\n", "")
+              return s.strip()
+
+          base = clean(raw_base)
+          key = clean(raw_key)
+
+          if not base:
+              print("::error::API_BASE_URL secret is empty. Set it to your public API root, e.g. https://my-app.fly.dev (no trailing slash, no quotes).")
+              raise SystemExit(1)
+          if not base.startswith(("http://", "https://")):
+              print("::error::API_BASE_URL must start with https:// or http://. Remove wrapping quotes and spaces from the secret value.")
+              raise SystemExit(1)
+          parsed = urlparse(base)
+          if not parsed.hostname:
+              print("::error::Could not parse a hostname from API_BASE_URL. Re-save the secret as e.g. https://my-app.fly.dev")
+              raise SystemExit(1)
+
+          open("/tmp/api_base_url", "w", encoding="utf-8").write(base)
+          open("/tmp/api_admin_key", "w", encoding="utf-8").write(key)
+
+          if not key:
+              print("::warning::ADMIN_API_KEY is empty. If Fly has ADMIN_API_KEY set, you will get HTTP 401.")
+          PY
 
       - name: POST /api/admin/refresh-actuals
-        env:
-          BASE: ${{ secrets.API_BASE_URL }}
-          KEY: ${{ secrets.ADMIN_API_KEY }}
         run: |
           set -euo pipefail
+          BASE="$(cat /tmp/api_base_url)"
+          KEY="$(cat /tmp/api_admin_key)"
           URL="${BASE%/}/api/admin/refresh-actuals"
-          echo "Calling ${URL}"
+          HOST=$(python3 -c "from urllib.parse import urlparse; print(urlparse(open('/tmp/api_base_url', encoding='utf-8').read()).hostname or '?')")
+          echo "POST $URL (host: ${HOST})"
           if [ -n "${KEY}" ]; then
             curl -fsS --max-time 180 \
               -X POST "$URL" \
