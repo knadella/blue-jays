@@ -97,33 +97,39 @@ The frontend expects the API at `http://localhost:8000`.
 
 ## Deploy frontend (GitHub Pages)
 
-The workflow **Deploy frontend to GitHub Pages** (`.github/workflows/deploy-github-pages.yml`) builds on every push to `main` that touches `frontend/` and publishes a **project site** at:
+The workflow **Deploy frontend to GitHub Pages** builds the **Vite app** in `frontend/` (charts, dashboard) and publishes a **project site** at:
 
 `https://<your-github-username>.github.io/<repo-name>/`
 
 (e.g. `https://knadella.github.io/blue-jays/`).
 
-### One-time setup
+### One-time setup (important)
 
-1. **Repository secret:** add **`VITE_API_URL`** = your public API base (same idea as Fly: `https://<app>.fly.dev`, no trailing slash). Example:
+1. **Pages source must be GitHub Actions.** In **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions** — not “Deploy from a branch.”
+
+   If Source is **Deploy from a branch** with **/ (root)** or **/docs**, GitHub serves files from the git tree. There is no `index.html` at the repo root, so the site falls back to showing **`README.md`**. That is not the React app. Switching to **GitHub Actions** fixes it after the workflow runs successfully.
+
+2. **API URL for the build:** the workflow needs your Fly API base for `VITE_API_URL`. Either:
+   - set secret **`VITE_API_URL`** (e.g. `https://your-app.fly.dev`), or  
+   - rely on existing **`API_BASE_URL`** (same value); the workflow uses it if `VITE_API_URL` is unset.
 
    ```bash
    printf '%s' 'https://YOUR-APP.fly.dev' | gh secret set VITE_API_URL -R <owner>/<repo>
    ```
 
-2. **Pages:** **Settings → Pages → Build and deployment → Source:** choose **GitHub Actions** (not “Deploy from a branch”).
-
-3. **CORS on Fly:** allow the Pages origin (scheme + host only, no path):
+3. **CORS on Fly:** allow the Pages origin (host only, no path):
 
    ```bash
    fly secrets set CORS_ORIGINS="https://YOURUSERNAME.github.io"
    ```
 
-   If you already set `CORS_ORIGINS`, merge origins as a comma-separated list.
+   If `CORS_ORIGINS` already exists, use a comma-separated list.
 
-4. Push a change under `frontend/` or run **Actions → Deploy frontend to GitHub Pages → Run workflow**.
+4. Run **Actions → Deploy frontend to GitHub Pages → Run workflow**, or push a change under `frontend/`.
 
-Local preview of a Pages-style build:
+5. Confirm **Actions** shows a green run for that workflow, then open the **Visit site** / Pages URL (with the `/<repo>/` path).
+
+### Local preview (Pages-style paths)
 
 ```bash
 cd frontend && VITE_BASE_PATH=/blue-jays/ VITE_API_URL=https://your-app.fly.dev npm run build && npx vite preview --base /blue-jays/

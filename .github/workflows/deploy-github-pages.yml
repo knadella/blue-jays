@@ -1,13 +1,12 @@
-# Build Vite frontend and deploy to GitHub Pages (project site:
-# https://<owner>.github.io/<repo>/).
+# Deploy the Vite app in frontend/ to GitHub Pages (NOT the repo README).
 #
-# One-time repo setup:
-#   Settings → Pages → Build and deployment → Source: GitHub Actions
+# REQUIRED repo setting (otherwise GitHub serves repo root → README.md):
+#   Settings → Pages → Build and deployment → Source = "GitHub Actions"
+#   If you see "Deploy from a branch", switch to GitHub Actions and save.
 #
-# Secrets (Settings → Secrets → Actions):
-#   VITE_API_URL — same as your Fly API root, e.g. https://my-app.fly.dev (no trailing slash)
+# Secrets: set VITE_API_URL and/or use existing API_BASE_URL (same Fly URL).
 #
-# Fly: fly secrets set CORS_ORIGINS="https://<user>.github.io" (origin has no path)
+# Fly CORS: include https://<user>.github.io
 name: Deploy frontend to GitHub Pages
 
 on:
@@ -42,16 +41,26 @@ jobs:
       - name: Install and build
         working-directory: frontend
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          # Project Pages base path must match the repo name
+          SECRET_VITE: ${{ secrets.VITE_API_URL }}
+          SECRET_API: ${{ secrets.API_BASE_URL }}
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
         run: |
-          if [ -z "${VITE_API_URL}" ]; then
-            echo "::error::Set repository secret VITE_API_URL to your API base (e.g. https://my-app.fly.dev)"
+          set -euo pipefail
+          if [ -n "${SECRET_VITE}" ]; then
+            export VITE_API_URL="${SECRET_VITE}"
+          elif [ -n "${SECRET_API}" ]; then
+            export VITE_API_URL="${SECRET_API}"
+            echo "Using API_BASE_URL as VITE_API_URL for build."
+          else
+            echo "::error::Set repository secret VITE_API_URL or API_BASE_URL (your Fly API root, e.g. https://my-app.fly.dev)"
             exit 1
           fi
           npm ci
           npm run build
+          test -f dist/index.html || { echo "::error::Build did not produce dist/index.html"; exit 1; }
+          test -s dist/index.html || { echo "::error::dist/index.html is empty"; exit 1; }
+          echo "Built site (first lines of index.html):"
+          head -n 5 dist/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:
