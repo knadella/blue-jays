@@ -8,8 +8,8 @@ name: Schedule — refresh actuals
 
 on:
   schedule:
-    # 12:00 UTC daily (~7–8 AM US Eastern, depending on DST)
-    - cron: "0 12 * * *"
+    # 10:00 UTC daily (~5 AM EST / ~6 AM EDT)
+    - cron: "0 10 * * *"
   workflow_dispatch:
 
 jobs:

@@ -152,7 +152,7 @@ Workflows in `.github/workflows/` call your deployed API on a schedule.
 
 2. Enable Actions; workflows also support **Run workflow** manually.
 
-**Verify schedules:** Cron only runs on the **default branch** (`main`). After secrets are set, open **Actions** → **Schedule — refresh actuals** → **Run workflow** → **Run workflow**. The job should print JSON with `"status":"ok"`. If `API_BASE_URL` is missing, the run fails with an explicit error; if `ADMIN_API_KEY` is missing while Fly requires it, you’ll see HTTP **401** in the logs.
+**Verify schedules:** Cron only runs on the **default branch** (`main`). Schedules use **UTC**: daily refresh and weekly refit both at **10:00 UTC** (~5 AM **EST**, ~6 AM **EDT**). After secrets are set, open **Actions** → **Schedule — refresh actuals** → **Run workflow** → **Run workflow**. The job should print JSON with `"status":"ok"`. If `API_BASE_URL` is missing, the run fails with an explicit error; if `ADMIN_API_KEY` is missing while Fly requires it, you’ll see HTTP **401** in the logs.
 
 ### systemd (Linux VPS)
 

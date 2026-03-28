@@ -8,8 +8,8 @@ name: Schedule — refit model
 
 on:
   schedule:
-    # Monday 11:00 UTC (~6–7 AM US Eastern)
-    - cron: "0 11 * * 1"
+    # Monday 10:00 UTC (~5 AM EST / ~6 AM EDT)
+    - cron: "0 10 * * 1"
   workflow_dispatch:
 
 jobs:
