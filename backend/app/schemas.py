@@ -34,8 +34,27 @@ class DashboardMeta(BaseModel):
     simulation_count: int
 
 
+class TeamRating(BaseModel):
+    team: str
+    value: float
+
+
+class TeamRatings(BaseModel):
+    offense: list[TeamRating] = Field(default_factory=list)
+    defense: list[TeamRating] = Field(default_factory=list)
+
+
+class ScheduleGame(BaseModel):
+    date: str
+    opponent: str
+    is_home: bool
+    opponent_strength: float
+
+
 class DashboardResponse(BaseModel):
     season: int
     favorite_team: str
     team_simulation: TeamSimulationView
+    team_ratings: TeamRatings
+    remaining_schedule: list[ScheduleGame] = Field(default_factory=list)
     meta: DashboardMeta

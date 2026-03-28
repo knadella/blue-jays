@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { fetchDashboard, type DashboardResponse } from "./api";
 import { CumulativeWinsChart } from "./components/CumulativeWinsChart";
+import { ScheduleHeatmap } from "./components/ScheduleHeatmap";
+import { TeamRatingCharts } from "./components/TeamRatingCharts";
 
 const LEAGUE_DIVISIONS: Record<string, string[]> = {
   AL: ["East", "Central", "West"],
@@ -128,23 +130,49 @@ export default function App() {
       {error && <div className="section-card error-card">{error}</div>}
 
       {dashboard && !loading && (
-        <section className="section-card chart-card">
-          <div className="section-header">
-            <h2>Win Projections</h2>
-            <span>
-              {dashboard.meta.games_completed} completed, {dashboard.meta.games_remaining} remaining
-            </span>
-          </div>
-          <CumulativeWinsChart
-            actualPoints={dashboard.team_simulation.actual_points}
-            simulationDensity={dashboard.team_simulation.simulation_density}
-            team={dashboard.team_simulation.team}
-            season={dashboard.season}
-            projectedFinalWins={dashboard.team_simulation.projected_final_wins}
-            projectedDivisionPlace={dashboard.team_simulation.projected_division_place}
-            playoffProbability={dashboard.team_simulation.playoff_probability}
-          />
-        </section>
+        <>
+          <section className="section-card chart-card">
+            <div className="section-header">
+              <h2>Win Projections</h2>
+              <span>
+                {dashboard.meta.games_completed} completed, {dashboard.meta.games_remaining} remaining
+              </span>
+            </div>
+            <CumulativeWinsChart
+              actualPoints={dashboard.team_simulation.actual_points}
+              simulationDensity={dashboard.team_simulation.simulation_density}
+              team={dashboard.team_simulation.team}
+              season={dashboard.season}
+              projectedFinalWins={dashboard.team_simulation.projected_final_wins}
+              projectedDivisionPlace={dashboard.team_simulation.projected_division_place}
+              playoffProbability={dashboard.team_simulation.playoff_probability}
+            />
+          </section>
+
+          <section className="section-card chart-card ratings-section">
+            <div className="section-header">
+              <h2>Team Ratings</h2>
+              <span>Posterior model estimates, runs per game</span>
+            </div>
+            <TeamRatingCharts
+              offense={dashboard.team_ratings.offense}
+              defense={dashboard.team_ratings.defense}
+              team={team}
+            />
+          </section>
+
+          <section className="section-card chart-card ratings-section">
+            <div className="section-header">
+              <h2>Strength of Schedule</h2>
+              <span>Remaining opponents by difficulty</span>
+            </div>
+            <ScheduleHeatmap
+              schedule={dashboard.remaining_schedule}
+              team={team}
+              season={dashboard.season}
+            />
+          </section>
+        </>
       )}
     </div>
   );

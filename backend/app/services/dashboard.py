@@ -13,7 +13,10 @@ from data_source.mlb_api import build_record, completed_game_rows, fetch_schedul
 from ..schemas import (
     DashboardMeta,
     DashboardResponse,
+    ScheduleGame,
     SimulationDensityCell,
+    TeamRating,
+    TeamRatings,
     TeamSimulationView,
     WinPoint,
 )
@@ -223,6 +226,47 @@ def build_dashboard_payload(
     team_completed = sum(1 for g in completed if _team_game(g))
     team_remaining = sum(1 for g in remaining if _team_game(g))
 
+    mu_median = float(np.median(snapshot.mu_array()))
+    offense_medians = np.median(snapshot.offense_array(), axis=0)
+    defense_medians = np.median(snapshot.defense_array(), axis=0)
+    offense_runs = np.exp(mu_median + offense_medians)
+    defense_runs = np.exp(mu_median - defense_medians)
+
+    offense_ratings = sorted(
+        [TeamRating(team=name, value=round(float(offense_runs[i]), 2))
+         for i, name in enumerate(snapshot.teams)],
+        key=lambda r: r.value,
+        reverse=True,
+    )
+    defense_ratings = sorted(
+        [TeamRating(team=name, value=round(float(defense_runs[i]), 2))
+         for i, name in enumerate(snapshot.teams)],
+        key=lambda r: r.value,
+    )
+
+    team_to_idx = {name: idx for idx, name in enumerate(snapshot.teams)}
+    run_diff = offense_runs - defense_runs
+    rd_min = float(run_diff.min())
+    rd_max = float(run_diff.max())
+    rd_range = rd_max - rd_min if rd_max > rd_min else 1.0
+
+    schedule_games: list[ScheduleGame] = []
+    for g in remaining:
+        if favorite_team not in {g["home_name"], g["away_name"]}:
+            continue
+        is_home = g["home_name"] == favorite_team
+        opponent = g["away_name"] if is_home else g["home_name"]
+        if opponent not in team_to_idx:
+            continue
+        opp_idx = team_to_idx[opponent]
+        strength = round((float(run_diff[opp_idx]) - rd_min) / rd_range, 3)
+        schedule_games.append(ScheduleGame(
+            date=g["game_date"][:10],
+            opponent=opponent,
+            is_home=is_home,
+            opponent_strength=strength,
+        ))
+
     return DashboardResponse(
         season=season,
         favorite_team=favorite_team,
@@ -235,6 +279,11 @@ def build_dashboard_payload(
             projected_division_place=projected_division_place,
             playoff_probability=playoff_probability,
         ),
+        team_ratings=TeamRatings(
+            offense=offense_ratings,
+            defense=defense_ratings,
+        ),
+        remaining_schedule=schedule_games,
         meta=DashboardMeta(
             generated_at=date.today().isoformat(),
             games_completed=team_completed,

@@ -19,10 +19,29 @@ export interface TeamSimulationView {
   playoff_probability: number;
 }
 
+export interface TeamRating {
+  team: string;
+  value: number;
+}
+
+export interface TeamRatings {
+  offense: TeamRating[];
+  defense: TeamRating[];
+}
+
+export interface ScheduleGame {
+  date: string;
+  opponent: string;
+  is_home: boolean;
+  opponent_strength: number;
+}
+
 export interface DashboardResponse {
   season: number;
   favorite_team: string;
   team_simulation: TeamSimulationView;
+  team_ratings: TeamRatings;
+  remaining_schedule: ScheduleGame[];
   meta: {
     generated_at: string;
     games_completed: number;
