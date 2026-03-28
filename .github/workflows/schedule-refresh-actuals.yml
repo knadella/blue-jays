@@ -1,0 +1,27 @@
+# Daily: re-fetch MLB scores, clear caches (no MCMC). Requires a publicly reachable API.
+name: Schedule — refresh actuals
+
+on:
+  schedule:
+    # ~7 AM US Eastern (UTC; adjust twice a year if you need exact ET)
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.API_BASE_URL != '' }}
+    steps:
+      - name: POST /api/admin/refresh-actuals
+        env:
+          BASE: ${{ secrets.API_BASE_URL }}
+          KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${KEY:-}" ]; then
+            curl -fsS --max-time 180 -X POST "${BASE%/}/api/admin/refresh-actuals" \
+              -H "X-Admin-Key: ${KEY}"
+          else
+            curl -fsS --max-time 180 -X POST "${BASE%/}/api/admin/refresh-actuals"
+          fi
+          echo

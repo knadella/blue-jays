@@ -20,6 +20,17 @@ var/
 .installed.cfg
 *.egg
 
+# MLB Forecast V2 / local
+.DS_Store
+.streamlit/
+.cache/
+.venv/
+.pytest_cache/
+
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
 # Environment variables
 .env
 
@@ -30,5 +41,4 @@ var/
 *.swo
 
 # OS
-.DS_Store
-Thumbs.db 
+Thumbs.db

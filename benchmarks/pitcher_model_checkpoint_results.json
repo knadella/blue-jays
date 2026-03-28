@@ -1,0 +1,67 @@
+[
+  {
+    "date": "2025-05-15",
+    "label": "~6 weeks",
+    "train_games": 645,
+    "test_games": 92,
+    "accuracy": 0.5652,
+    "log_loss": 0.6738,
+    "brier": 0.2409,
+    "baseline_log_loss": 0.6922,
+    "lift_vs_baseline": 0.0184,
+    "beta_pitcher_mean": 0.1715,
+    "fit_seconds": 23.5
+  },
+  {
+    "date": "2025-06-15",
+    "label": "~10 weeks",
+    "train_games": 1054,
+    "test_games": 94,
+    "accuracy": 0.5106,
+    "log_loss": 0.6991,
+    "brier": 0.253,
+    "baseline_log_loss": 0.6911,
+    "lift_vs_baseline": -0.008,
+    "beta_pitcher_mean": 0.1753,
+    "fit_seconds": 20.0
+  },
+  {
+    "date": "2025-07-15",
+    "label": "All-Star",
+    "train_games": 1444,
+    "test_games": 60,
+    "accuracy": 0.5667,
+    "log_loss": 0.6607,
+    "brier": 0.2341,
+    "baseline_log_loss": 0.6881,
+    "lift_vs_baseline": 0.0275,
+    "beta_pitcher_mean": 0.1605,
+    "fit_seconds": 20.8
+  },
+  {
+    "date": "2025-08-15",
+    "label": "~4 months",
+    "train_games": 1819,
+    "test_games": 96,
+    "accuracy": 0.5729,
+    "log_loss": 0.6875,
+    "brier": 0.247,
+    "baseline_log_loss": 0.6912,
+    "lift_vs_baseline": 0.0037,
+    "beta_pitcher_mean": 0.1698,
+    "fit_seconds": 20.2
+  },
+  {
+    "date": "2025-09-15",
+    "label": "September",
+    "train_games": 2243,
+    "test_games": 96,
+    "accuracy": 0.5417,
+    "log_loss": 0.6812,
+    "brier": 0.2443,
+    "baseline_log_loss": 0.6755,
+    "lift_vs_baseline": -0.0057,
+    "beta_pitcher_mean": 0.1814,
+    "fit_seconds": 22.9
+  }
+]

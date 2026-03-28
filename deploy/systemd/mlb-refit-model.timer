@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly MLB model refit
+
+[Timer]
+# Monday 05:30 local time
+OnCalendar=Mon *-*-* 05:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
