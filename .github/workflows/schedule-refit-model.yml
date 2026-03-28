@@ -1,27 +1,66 @@
-# Weekly: full MCMC refit + new posterior snapshot. Slow; use generous timeout.
+# Weekly: full MCMC refit + new posterior snapshot. Slow; generous timeout.
+#
+# Secrets: API_BASE_URL (required), ADMIN_API_KEY (required if your API sets ADMIN_API_KEY).
+# Test: Actions → this workflow → Run workflow (expect several minutes).
+# Schedules only run on the repository default branch.
 name: Schedule — refit model
 
 on:
   schedule:
-    # Monday ~6 AM US Eastern
+    # Monday 11:00 UTC (~6–7 AM US Eastern)
     - cron: "0 11 * * 1"
   workflow_dispatch:
 
 jobs:
   refit:
     runs-on: ubuntu-latest
-    if: ${{ secrets.API_BASE_URL != '' }}
     steps:
+      - name: Validate configuration
+        env:
+          BASE: ${{ secrets.API_BASE_URL }}
+          KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BASE}" ]; then
+            echo "::error::Repository secret API_BASE_URL is not set. Add it under Settings → Secrets → Actions (no trailing slash), e.g. https://my-app.fly.dev"
+            exit 1
+          fi
+          if [ -z "${KEY}" ]; then
+            echo "::warning::ADMIN_API_KEY secret is empty. If your Fly app has ADMIN_API_KEY set, this job will get HTTP 401 — add the same value as a repository secret."
+          fi
+
       - name: POST /api/admin/refit-model
         env:
           BASE: ${{ secrets.API_BASE_URL }}
           KEY: ${{ secrets.ADMIN_API_KEY }}
         run: |
           set -euo pipefail
-          if [ -n "${KEY:-}" ]; then
-            curl -fsS --max-time 900 -X POST "${BASE%/}/api/admin/refit-model" \
-              -H "X-Admin-Key: ${KEY}"
+          URL="${BASE%/}/api/admin/refit-model"
+          echo "Calling ${URL} (may take several minutes)"
+          if [ -n "${KEY}" ]; then
+            curl -fsS --max-time 900 \
+              -X POST "$URL" \
+              -H "X-Admin-Key: ${KEY}" \
+              -H "Accept: application/json" \
+              -D /tmp/headers.txt -o /tmp/body.txt || {
+                echo "::error::Request failed. Response headers:"
+                cat /tmp/headers.txt || true
+                echo "Body:"
+                cat /tmp/body.txt || true
+                exit 1
+              }
           else
-            curl -fsS --max-time 900 -X POST "${BASE%/}/api/admin/refit-model"
+            curl -fsS --max-time 900 \
+              -X POST "$URL" \
+              -H "Accept: application/json" \
+              -D /tmp/headers.txt -o /tmp/body.txt || {
+                echo "::error::Request failed (no admin key sent). Response headers:"
+                cat /tmp/headers.txt || true
+                echo "Body:"
+                cat /tmp/body.txt || true
+                exit 1
+              }
           fi
+          echo "Response:"
+          cat /tmp/body.txt
           echo
