@@ -119,13 +119,13 @@ The workflow **Deploy frontend to GitHub Pages** builds the **Vite app** in `fro
    printf '%s' 'https://YOUR-APP.fly.dev' | gh secret set VITE_API_URL -R <owner>/<repo>
    ```
 
-3. **CORS on Fly:** allow the Pages origin (host only, no path):
+3. **CORS on Fly:** allow the GitHub Pages origin. The browser sends `Origin: https://YOURUSERNAME.github.io` (no `/repo` path). You can set either form; the API **strips paths** so `https://user.github.io/blue-jays` still matches.
 
    ```bash
    fly secrets set CORS_ORIGINS="https://YOURUSERNAME.github.io"
    ```
 
-   If `CORS_ORIGINS` already exists, use a comma-separated list.
+   If `CORS_ORIGINS` already exists, use a comma-separated list. Redeploy the API after changing secrets so the app picks up the new env.
 
 4. Run **Actions → Deploy frontend to GitHub Pages → Run workflow**, or push a change under `frontend/`.
 

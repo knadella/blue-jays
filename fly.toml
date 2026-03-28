@@ -22,7 +22,8 @@ primary_region = "iad"
   min_machines_running = 1
 
   [http_service.http_options]
-    idle_timeout = 900
+    # Weekly refit can run two MCMC phases; keep above GitHub Actions curl max-time.
+    idle_timeout = 3600
 
   [[http_service.checks]]
     interval = "30s"

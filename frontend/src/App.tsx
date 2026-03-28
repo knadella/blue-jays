@@ -91,7 +91,12 @@ export default function App() {
         if (err.name === "AbortError") {
           return;
         }
-        setError(err.message);
+        const msg = err.message || String(err);
+        const networkHint =
+          msg === "Failed to fetch" || msg === "Load failed" || msg.includes("NetworkError")
+            ? " (check API URL and CORS: Fly secret CORS_ORIGINS must include https://<user>.github.io — host only, no /repo path)"
+            : "";
+        setError(`${msg}${networkHint}`);
       })
       .finally(() => {
         if (!controller.signal.aborted) {

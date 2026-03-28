@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 def _env_int(name: str, default: int) -> int:
     raw = os.getenv(name, "").strip()
@@ -19,18 +20,50 @@ POSTERIOR_RETENTION = 2 / 3
 # If set, POST /api/admin/* requires header X-Admin-Key: <value> (recommended in production).
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip() or None
 
-# Comma-separated origins for CORS (production frontend URL(s)).
-CORS_ORIGINS = [
-    o.strip()
-    for o in os.getenv(
+def _normalize_cors_origin(raw: str) -> str:
+    """Strip whitespace/quotes and reduce to scheme://host[:port] (no path).
+
+    Browsers send Origin without a path. If CORS_ORIGINS mistakenly includes
+    e.g. https://user.github.io/repo-name, the match would fail.
+    """
+    o = raw.strip().strip('"').strip("'")
+    if not o:
+        return ""
+    if "://" not in o:
+        o = f"https://{o}"
+    p = urlparse(o)
+    if p.scheme in ("http", "https") and p.netloc:
+        return f"{p.scheme}://{p.netloc}"
+    return o.rstrip("/")
+
+
+def _parse_cors_origins() -> list[str]:
+    raw = os.getenv(
         "CORS_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173",
-    ).split(",")
-    if o.strip()
-]
-POSTERIOR_DRAWS = 750
-POSTERIOR_TUNE = 750
-POSTERIOR_CHAINS = 2
+    )
+    seen: set[str] = set()
+    out: list[str] = []
+    for part in raw.split(","):
+        n = _normalize_cors_origin(part)
+        if n and n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
+# Comma-separated origins for CORS (production frontend URL(s)).
+CORS_ORIGINS = _parse_cors_origins()
+
+# MCMC length for the main season fit (override on Fly for faster refits).
+POSTERIOR_DRAWS = _env_int("POSTERIOR_DRAWS", 750)
+POSTERIOR_TUNE = _env_int("POSTERIOR_TUNE", 750)
+POSTERIOR_CHAINS = _env_int("POSTERIOR_CHAINS", 2)
+
+# Lighter sampling for prior-season backfill (only seeds the current season).
+PRIOR_BACKFILL_DRAWS = _env_int("PRIOR_BACKFILL_DRAWS", 400)
+PRIOR_BACKFILL_TUNE = _env_int("PRIOR_BACKFILL_TUNE", 400)
+PRIOR_BACKFILL_CHAINS = _env_int("PRIOR_BACKFILL_CHAINS", 1)
 FORWARD_SIMULATIONS = int(os.getenv("FORWARD_SIMULATIONS", "2500"))
 # Persistent disk on Fly.io: set POSTERIOR_CACHE_DIR=/data/posteriors and mount a volume on /data
 _POSTERIOR_CACHE_ENV = os.getenv("POSTERIOR_CACHE_DIR", "").strip()

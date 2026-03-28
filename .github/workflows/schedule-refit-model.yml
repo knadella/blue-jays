@@ -1,4 +1,4 @@
-# Weekly: full MCMC refit + new posterior snapshot. Slow; generous timeout.
+# Weekly: full MCMC refit + new posterior snapshot. Slow; allow up to 1h client wait.
 #
 # Secrets: API_BASE_URL (required), ADMIN_API_KEY (required if your API sets ADMIN_API_KEY).
 # API_BASE_URL must be exactly like: https://my-app.fly.dev  (no quotes, spaces, or newlines)
@@ -15,6 +15,7 @@ on:
 jobs:
   refit:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Validate and normalize configuration
         env:
@@ -64,7 +65,7 @@ jobs:
           HOST=$(python3 -c "from urllib.parse import urlparse; print(urlparse(open('/tmp/api_base_url', encoding='utf-8').read()).hostname or '?')")
           echo "POST $URL (host: ${HOST}) — may take several minutes"
           if [ -n "${KEY}" ]; then
-            curl -fsS --max-time 900 \
+            curl -fsS --max-time 3600 \
               -X POST "$URL" \
               -H "X-Admin-Key: ${KEY}" \
               -H "Accept: application/json" \
@@ -76,7 +77,7 @@ jobs:
                 exit 1
               }
           else
-            curl -fsS --max-time 900 \
+            curl -fsS --max-time 3600 \
               -X POST "$URL" \
               -H "Accept: application/json" \
               -D /tmp/headers.txt -o /tmp/body.txt || {

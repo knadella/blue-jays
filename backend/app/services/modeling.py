@@ -14,6 +14,9 @@ from config import (
     POSTERIOR_CHAINS,
     POSTERIOR_DRAWS,
     POSTERIOR_TUNE,
+    PRIOR_BACKFILL_CHAINS,
+    PRIOR_BACKFILL_DRAWS,
+    PRIOR_BACKFILL_TUNE,
     RECENCY_HALF_LIFE_DAYS,
     compute_prior_retention,
 )
@@ -254,14 +257,15 @@ def _load_prior_seed(
     if older_snapshot is None or older_snapshot.teams != teams:
         older_snapshot = _proxy_prior_snapshot(season=season - 1, teams=teams, draws=draws, rng=rng)
 
+    # Prior-season fit is only a seed for the current season; use lighter MCMC.
     return _fit_snapshot_from_games(
         season=season - 1,
         completed_games=completed_game_rows(completed),
         teams=teams,
         prior_snapshot=older_snapshot,
-        draws=draws,
-        tune=tune,
-        chains=chains,
+        draws=min(draws, PRIOR_BACKFILL_DRAWS),
+        tune=min(tune, PRIOR_BACKFILL_TUNE),
+        chains=min(chains, max(1, PRIOR_BACKFILL_CHAINS)),
         rng=rng,
         source="pymc-fit-prior-backfill",
     )
