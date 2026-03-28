@@ -39,6 +39,11 @@ def fetch_schedule(season: int) -> list[dict]:
     return games
 
 
+def clear_schedule_cache() -> None:
+    """Invalidate the in-memory schedule cache so the next call fetches fresh data."""
+    fetch_schedule.cache_clear()
+
+
 def split_schedule(games: list[dict]) -> tuple[list[dict], list[dict]]:
     """Split a full schedule into (completed, remaining) game lists."""
     completed = [g for g in games if g.get("status") == "Final"]

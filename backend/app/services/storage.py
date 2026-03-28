@@ -23,6 +23,9 @@ class PosteriorSnapshot:
     hfa: list[float]
     offense: list[list[float]]
     defense: list[list[float]]
+    park: Optional[list[list[float]]] = None
+    alpha: Optional[list[float]] = None
+    diagnostics: Optional[dict] = None
 
     @property
     def draw_count(self) -> int:
@@ -54,6 +57,26 @@ class PosteriorSnapshot:
         if cached is None:
             cached = np.asarray(self.defense, dtype=float)
             self._defense_array_cache = cached
+        return cached
+
+    def park_array(self) -> np.ndarray:
+        cached = getattr(self, "_park_array_cache", None)
+        if cached is None:
+            if self.park is not None:
+                cached = np.asarray(self.park, dtype=float)
+            else:
+                cached = np.zeros((self.draw_count, len(self.teams)))
+            self._park_array_cache = cached
+        return cached
+
+    def alpha_array(self) -> np.ndarray:
+        cached = getattr(self, "_alpha_array_cache", None)
+        if cached is None:
+            if self.alpha is not None:
+                cached = np.asarray(self.alpha, dtype=float)
+            else:
+                cached = np.full(self.draw_count, 1e6)
+            self._alpha_array_cache = cached
         return cached
 
 

@@ -76,6 +76,37 @@ npm run dev
 
 The frontend expects the API at `http://localhost:8000`.
 
+## Scheduled Refresh
+
+The app separates **daily actuals refresh** (fast, updates game scores) from
+**weekly model refit** (slow, re-estimates team strengths via MCMC).
+
+### Admin endpoints
+
+| Endpoint | Method | Purpose | Speed |
+|----------|--------|---------|-------|
+| `/api/admin/refresh-actuals` | POST | Clear caches, re-fetch scores from MLB API | ~30 s |
+| `/api/admin/refit-model` | POST | Full MCMC refit with fresh data | ~3 min |
+
+Both accept an optional `?season=` query parameter (defaults to the current season).
+
+### Cron setup
+
+Add the following to your crontab (`crontab -e`) or equivalent scheduler:
+
+```bash
+# Daily at 6 AM ET: refresh game scores and standings
+0 6 * * * curl -s -X POST http://localhost:8000/api/admin/refresh-actuals
+
+# Weekly Monday at 5 AM ET: refit the Bayesian model
+0 5 * * 1 curl -s -X POST http://localhost:8000/api/admin/refit-model
+```
+
+The daily refresh clears in-memory caches so the next dashboard request
+picks up the latest final scores using the existing model.  The weekly
+refit produces a new posterior snapshot (saved under `.cache/posteriors/`)
+with updated team strength estimates.
+
 ## Current Status
 
 This repo now contains the first pass of the V2 rewrite:
@@ -84,10 +115,5 @@ This repo now contains the first pass of the V2 rewrite:
 - posterior snapshot persistence
 - PyMC model definition and bootstrap fallback
 - React + D3 dashboard shell
-
-Still to deepen:
-
-- richer daily posterior history
-- more exact elimination-number logic
-- finer D3 interactions and filtering
-- production-ready caching and background refits
+- model evaluation pipeline (retrodictive scoring, calibration, MCMC diagnostics)
+- admin endpoints for scheduled data refresh and model refit

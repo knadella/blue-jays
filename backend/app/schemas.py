@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -58,3 +60,84 @@ class DashboardResponse(BaseModel):
     team_ratings: TeamRatings
     remaining_schedule: list[ScheduleGame] = Field(default_factory=list)
     meta: DashboardMeta
+
+
+# ---------------------------------------------------------------------------
+# Evaluation schemas
+# ---------------------------------------------------------------------------
+
+
+class EvaluationMetrics(BaseModel):
+    log_loss: float
+    brier_score: float
+    accuracy: float
+    runs_mae: float
+    runs_mae_home: float
+    runs_mae_away: float
+    home_win_rate: float
+
+
+class BaselineMetrics(BaseModel):
+    constant_accuracy: float
+    constant_brier: float
+    constant_log_loss: float
+
+
+class CalibrationBin(BaseModel):
+    bin_start: float
+    bin_end: float
+    predicted_mean: float
+    observed_frequency: float
+    count: int
+
+
+class GamePrediction(BaseModel):
+    game_date: str
+    home_team: str
+    away_team: str
+    predicted_home_win_prob: float
+    actual_home_win: int
+    predicted_home_runs: float
+    predicted_away_runs: float
+    actual_home_runs: int
+    actual_away_runs: int
+
+
+class MCMCDiagnostics(BaseModel):
+    rhat_max: float
+    ess_bulk_min: float
+    ess_tail_min: float
+    divergences: int
+    warnings: list[str] = Field(default_factory=list)
+
+
+class EvaluationResponse(BaseModel):
+    season: int
+    n_games: int
+    model_source: str
+    metrics: EvaluationMetrics
+    baselines: BaselineMetrics
+    mcmc_diagnostics: Optional[MCMCDiagnostics] = None
+    calibration: list[CalibrationBin] = Field(default_factory=list)
+    biggest_surprises: list[GamePrediction] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Admin / refresh schemas
+# ---------------------------------------------------------------------------
+
+
+class RefreshResponse(BaseModel):
+    status: str
+    season: int
+    games_completed: int
+    timestamp: str
+
+
+class RefitResponse(BaseModel):
+    status: str
+    season: int
+    games_fitted: int
+    model_source: str
+    diagnostics: Optional[dict] = None
+    timestamp: str

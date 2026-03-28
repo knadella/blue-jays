@@ -196,6 +196,9 @@ def _build_simulation_views(
     hfa_draws = snapshot.hfa_array()[sample_idx]
     offense_draws = snapshot.offense_array()[sample_idx]
     defense_draws = snapshot.defense_array()[sample_idx]
+    park_draws = snapshot.park_array()[sample_idx]
+    alpha_draws = snapshot.alpha_array()[sample_idx]
+    has_overdispersion = snapshot.alpha is not None
 
     cumulative_wins = np.zeros((n_sims, team_count), dtype=int)
     for team_name, record in actual_record.items():
@@ -215,13 +218,23 @@ def _build_simulation_views(
             home_idx = team_to_idx[home_name]
             away_idx = team_to_idx[away_name]
             lambda_home = np.exp(
-                mu_draws + hfa_draws + offense_draws[:, home_idx] - defense_draws[:, away_idx]
+                mu_draws + hfa_draws + park_draws[:, home_idx]
+                + offense_draws[:, home_idx] - defense_draws[:, away_idx]
             )
             lambda_away = np.exp(
-                mu_draws + offense_draws[:, away_idx] - defense_draws[:, home_idx]
+                mu_draws + park_draws[:, home_idx]
+                + offense_draws[:, away_idx] - defense_draws[:, home_idx]
             )
-            home_runs = rng.poisson(lambda_home)
-            away_runs = rng.poisson(lambda_away)
+
+            if has_overdispersion:
+                rate_h = rng.gamma(alpha_draws, lambda_home / alpha_draws)
+                rate_a = rng.gamma(alpha_draws, lambda_away / alpha_draws)
+                home_runs = rng.poisson(rate_h)
+                away_runs = rng.poisson(rate_a)
+            else:
+                home_runs = rng.poisson(lambda_home)
+                away_runs = rng.poisson(lambda_away)
+
             home_wins = _resolve_ties(home_runs, away_runs, lambda_home, lambda_away, rng)
             cumulative_wins[:, home_idx] += home_wins
             cumulative_wins[:, away_idx] += ~home_wins
@@ -362,6 +375,11 @@ def _build_all_dashboard_payloads_cached(
         season=season,
         force_refit=False,
     )
+
+
+def clear_dashboard_cache() -> None:
+    """Invalidate the in-memory dashboard payload cache."""
+    _build_all_dashboard_payloads_cached.cache_clear()
 
 
 def build_dashboard_payload(
