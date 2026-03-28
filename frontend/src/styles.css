@@ -133,6 +133,12 @@ body {
   margin: 0;
 }
 
+.loading-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: #8a7a6c;
+  font-size: 14px;
+}
+
 .loading-hint {
   margin: 14px 0 0;
   font-size: 14px;

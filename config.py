@@ -14,6 +14,27 @@ def _env_int(name: str, default: int) -> int:
     return int(raw)
 
 
+def _env_bool(name: str, *, default: bool = False) -> bool:
+    raw = os.getenv(name, "").strip().lower()
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
+# Fly Machines set FLY_ALLOC_ID; used to default friendlier dashboard behavior in production.
+_RUNNING_ON_FLY = bool(os.getenv("FLY_ALLOC_ID", "").strip())
+
+# When there is no saved posterior yet, GET /api/dashboard can skip PyMC and use a fast
+# prior bootstrap, then save it so later requests stay fast. Admin refit still runs full MCMC.
+# Default ON when running on Fly; set INSTANT_DASHBOARD_PRIOR=false to force cold-start MCMC.
+INSTANT_DASHBOARD_PRIOR = _env_bool(
+    "INSTANT_DASHBOARD_PRIOR",
+    default=_RUNNING_ON_FLY,
+)
+
+
 DEFAULT_SEASON = _env_int("MLB_SEASON", 2026)
 POSTERIOR_RETENTION = 2 / 3
 

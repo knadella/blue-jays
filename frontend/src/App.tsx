@@ -39,6 +39,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [slowLoadHint, setSlowLoadHint] = useState(false);
+  const [loadSeconds, setLoadSeconds] = useState(0);
   const dashboardCacheRef = useRef(new Map<string, DashboardResponse>());
   const prefetchInFlightRef = useRef(new Set<string>());
 
@@ -111,11 +112,18 @@ export default function App() {
   useEffect(() => {
     if (!loading) {
       setSlowLoadHint(false);
+      setLoadSeconds(0);
       return;
     }
-    const id = window.setTimeout(() => setSlowLoadHint(true), 8000);
+    const start = Date.now();
+    setLoadSeconds(0);
+    const tick = window.setInterval(() => {
+      setLoadSeconds(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    const hintId = window.setTimeout(() => setSlowLoadHint(true), 8000);
     return () => {
-      window.clearTimeout(id);
+      window.clearInterval(tick);
+      window.clearTimeout(hintId);
       setSlowLoadHint(false);
     };
   }, [loading]);
@@ -210,7 +218,10 @@ export default function App() {
       {loading && (
         <div className="section-card loading-card">
           <p className="loading-primary">
-            {dashboard ? `Updating ${team} dashboard...` : "Loading dashboard data..."}
+            {dashboard ? `Updating ${team} dashboard...` : "Loading dashboard data..."}{" "}
+            <span className="loading-elapsed" aria-live="polite">
+              ({loadSeconds}s)
+            </span>
           </p>
           {slowLoadHint && (
             <p className="loading-hint">

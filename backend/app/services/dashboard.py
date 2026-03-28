@@ -8,7 +8,14 @@ from functools import lru_cache
 
 import numpy as np
 
-from config import ALL_TEAMS, DIVISIONS, FORWARD_SIMULATIONS, LEAGUES, TEAM_TO_DIVISION
+from config import (
+    ALL_TEAMS,
+    DIVISIONS,
+    FORWARD_SIMULATIONS,
+    INSTANT_DASHBOARD_PRIOR,
+    LEAGUES,
+    TEAM_TO_DIVISION,
+)
 from data_source.mlb_api import build_record, completed_game_rows, fetch_schedule, split_schedule
 from data_source.pitcher_stats import build_pitcher_quality
 
@@ -366,6 +373,7 @@ def _build_all_dashboard_payloads_uncached(
         completed_games=completed_game_rows(completed),
         teams=ALL_TEAMS,
         force_refit=force_refit,
+        dashboard_instant_bootstrap=INSTANT_DASHBOARD_PRIOR,
     )
     actual_points_by_team, starting_wins_by_team, remaining_dates = _build_actual_points_by_team(
         schedule=schedule,

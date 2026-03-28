@@ -481,12 +481,31 @@ def fit_or_load_snapshot(
     draws: int = POSTERIOR_DRAWS,
     tune: int = POSTERIOR_TUNE,
     chains: int = POSTERIOR_CHAINS,
+    dashboard_instant_bootstrap: bool = False,
 ) -> PosteriorSnapshot:
     """Fit the PyMC model or reuse the latest stored snapshot."""
     if not force_refit:
         existing = load_latest_snapshot(season)
         if existing is not None and existing.teams == teams:
             return existing
+        if dashboard_instant_bootstrap:
+            rng = np.random.default_rng(seed=season)
+            prior_snap = _proxy_prior_snapshot(
+                season=season,
+                teams=teams,
+                draws=min(draws, COLD_START_POSTERIOR_DRAWS),
+                rng=rng,
+            )
+            return _sample_prior_snapshot(
+                season=season,
+                teams=teams,
+                prior_snapshot=prior_snap,
+                draws=min(draws, COLD_START_POSTERIOR_DRAWS),
+                rng=rng,
+                source="prior-bootstrap-instant",
+                n_current_games=len(completed_games),
+                skip_save=False,
+            )
         fit_draws = min(draws, COLD_START_POSTERIOR_DRAWS)
         fit_tune = min(tune, COLD_START_POSTERIOR_TUNE)
         fit_chains = min(chains, max(1, COLD_START_POSTERIOR_CHAINS))
