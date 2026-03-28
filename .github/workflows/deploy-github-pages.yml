@@ -60,8 +60,10 @@ jobs:
           npm run build
           test -f dist/index.html || { echo "::error::Build did not produce dist/index.html"; exit 1; }
           test -s dist/index.html || { echo "::error::dist/index.html is empty"; exit 1; }
+          test -f dist/.nojekyll || { echo "::error::Missing dist/.nojekyll — add frontend/public/.nojekyll"; exit 1; }
+          grep -q 'type="module"' dist/index.html || { echo "::error::dist/index.html is not the Vite SPA (no module script)"; exit 1; }
           echo "Built site (first lines of index.html):"
-          head -n 5 dist/index.html
+          head -n 12 dist/index.html
 
       - name: Push dist to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
