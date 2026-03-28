@@ -105,9 +105,11 @@ The workflow **Deploy frontend to GitHub Pages** builds the **Vite app** in `fro
 
 ### One-time setup (important)
 
-1. **Pages source must be GitHub Actions.** In **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions** — not “Deploy from a branch.”
+1. **Pages must deploy the `gh-pages` branch, not `main`.** The workflow pushes the built app to branch **`gh-pages`**. In **Settings → Pages → Build and deployment**, set **Source** to **Deploy from a branch**, choose branch **`gh-pages`**, folder **`/ (root)`**.
 
-   If Source is **Deploy from a branch** with **/ (root)** or **/docs**, GitHub serves files from the git tree. There is no `index.html` at the repo root, so the site falls back to showing **`README.md`**. That is not the React app. Switching to **GitHub Actions** fixes it after the workflow runs successfully.
+   If Pages uses **`main`** with **`/ (root)`**, GitHub serves the repo tree. There is no `index.html` at the repo root, so the site shows **`README.md`**. That is not the React app.
+
+   Run the workflow once (step 4), wait for a green run so **`gh-pages`** exists, then set Pages as above. Do **not** point Pages at `main` / root for the app.
 
 2. **API URL for the build:** the workflow needs your Fly API base for `VITE_API_URL`. Either:
    - set secret **`VITE_API_URL`** (e.g. `https://your-app.fly.dev`), or  
@@ -127,7 +129,7 @@ The workflow **Deploy frontend to GitHub Pages** builds the **Vite app** in `fro
 
 4. Run **Actions → Deploy frontend to GitHub Pages → Run workflow**, or push a change under `frontend/`.
 
-5. Confirm **Actions** shows a green run for that workflow, then open the **Visit site** / Pages URL (with the `/<repo>/` path).
+5. Confirm **Actions** shows a green run, set **Pages** to **gh-pages** / **/** if you have not already, then open **`https://<user>.github.io/<repo>/`** (project sites need the `/<repo>/` path).
 
 ### Local preview (Pages-style paths)
 
@@ -272,7 +274,7 @@ The repo includes a **`Dockerfile`** and **`fly.toml`**: Python 3.11, **2GB RAM*
 - React + D3 dashboard
 - admin endpoints, GitHub Actions schedules, optional `ADMIN_API_KEY`
 - Fly.io `Dockerfile` + `fly.toml` for production API hosting
-- GitHub Pages deploy workflow for the Vite frontend (`VITE_API_URL` + `VITE_BASE_PATH`)
+- GitHub Pages: workflow pushes `frontend/dist` to **`gh-pages`** (`VITE_API_URL` + `VITE_BASE_PATH`); Pages source = that branch, `/ (root)`
 
 ## Legacy: Statcast analysis
 

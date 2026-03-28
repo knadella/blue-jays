@@ -1,12 +1,15 @@
-# Deploy the Vite app in frontend/ to GitHub Pages (NOT the repo README).
+# Deploy the Vite app in frontend/ to the gh-pages branch for GitHub Pages.
 #
-# REQUIRED repo setting (otherwise GitHub serves repo root → README.md):
-#   Settings → Pages → Build and deployment → Source = "GitHub Actions"
-#   If you see "Deploy from a branch", switch to GitHub Actions and save.
+# REQUIRED (otherwise GitHub serves main branch root → README.md):
+#   Settings → Pages → Build and deployment → Source = "Deploy from a branch"
+#   Branch = gh-pages, folder = / (root)
 #
-# Secrets: set VITE_API_URL and/or use existing API_BASE_URL (same Fly URL).
+# After the first successful workflow run, the gh-pages branch exists; then set
+# Pages as above. That branch has only dist output (no README), so the site is
+# the React app, not the repo readme.
 #
-# Fly CORS: include https://<user>.github.io
+# Secrets: VITE_API_URL or API_BASE_URL (Fly API root). Fly CORS: allow
+# https://<user>.github.io
 name: Deploy frontend to GitHub Pages
 
 on:
@@ -18,16 +21,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-gh-pages
+  cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,16 +63,9 @@ jobs:
           echo "Built site (first lines of index.html):"
           head -n 5 dist/index.html
 
-      - uses: actions/upload-pages-artifact@v3
+      - name: Push dist to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: frontend/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./frontend/dist
+          force_orphan: true
