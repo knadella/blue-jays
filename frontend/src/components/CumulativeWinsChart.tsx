@@ -369,107 +369,87 @@ export function CumulativeWinsChart({
         .text(team === "Toronto Blue Jays" ? "TOR" : "TEAM");
     }
 
-    svg
-      .append("text")
-      .attr("x", margin.left)
-      .attr("y", margin.top - 6)
-      .attr("fill", "#6b5b4d")
-      .style("fontSize", "12px")
-      .text("Dark band: middle 50%. Light band: middle 80%.");
+    const defs = svg.append("defs");
+    const shadowFilter = defs.append("filter")
+      .attr("id", "stats-shadow")
+      .attr("x", "-20%")
+      .attr("y", "-20%")
+      .attr("width", "160%")
+      .attr("height", "160%");
+    shadowFilter.append("feDropShadow")
+      .attr("dx", 0)
+      .attr("dy", 1)
+      .attr("stdDeviation", 6)
+      .attr("flood-color", "#1a1a1a")
+      .attr("flood-opacity", 0.09);
 
-    svg
-      .append("text")
-      .attr("x", width - margin.right)
-      .attr("y", margin.top - 6)
-      .attr("text-anchor", "end")
-      .attr("fill", "#1f1f1f")
-      .style("fontSize", "12px")
-      .style("fontWeight", "600")
-      .text(team);
+    const cardClipId = "stats-clip";
+    defs.append("clipPath").attr("id", cardClipId)
+      .append("rect")
+      .attr("width", 306)
+      .attr("height", 88)
+      .attr("rx", 8);
 
     const statsGroup = svg.append("g").attr("transform", `translate(${statX},${statY})`);
-    const cardX = -14;
-    const cardY = -18;
-    const cardWidth = 222;
-    const cardHeight = 130;
+    const cardW = 306;
+    const cardH = 88;
+    const colW = cardW / 3;
 
-    statsGroup
-      .append("rect")
-      .attr("x", cardX)
-      .attr("y", cardY)
-      .attr("width", cardWidth)
-      .attr("height", cardHeight)
-      .attr("rx", 3)
+    statsGroup.append("rect")
+      .attr("width", cardW)
+      .attr("height", cardH)
+      .attr("rx", 8)
       .attr("fill", "#ffffff")
-      .attr("fill-opacity", 1)
-      .attr("stroke", "#d8ccc0")
-      .attr("stroke-width", 1);
+      .attr("filter", "url(#stats-shadow)");
 
-    statsGroup
-      .append("rect")
-      .attr("x", cardX)
-      .attr("y", cardY)
-      .attr("width", cardWidth)
-      .attr("height", 3)
-      .attr("fill", accentColor)
-      .attr("opacity", 0.75);
+    const clipped = statsGroup.append("g").attr("clip-path", `url(#${cardClipId})`);
+    clipped.append("rect")
+      .attr("width", 4)
+      .attr("height", cardH)
+      .attr("fill", accentColor);
 
-    statsGroup
-      .append("text")
-      .attr("x", 0)
-      .attr("y", cardY + 12)
-      .attr("dominant-baseline", "hanging")
-      .attr("fill", "#7a6b5b")
-      .style("fontSize", "11px")
-      .style("fontWeight", "700")
-      .style("letterSpacing", "0.08em")
-      .text("CURRENT FORECAST");
+    const stats = [
+      { value: `${projectedFinalWins}`, label: "PROJ. WINS", isHero: true },
+      { value: ordinal(projectedDivisionPlace), label: "DIVISION", isHero: false },
+      { value: `${Math.round(playoffProbability)}%`, label: "PLAYOFFS", isHero: false },
+    ];
 
-    statsGroup
-      .append("text")
-      .attr("x", 0)
-      .attr("y", cardY + 30)
-      .attr("dominant-baseline", "hanging")
-      .attr("fill", "#1f1f1f")
-      .style("fontFamily", "Georgia, 'Times New Roman', serif")
-      .style("fontSize", "46px")
-      .style("fontWeight", "600")
-      .text(`${projectedFinalWins} wins`);
+    stats.forEach((stat, i) => {
+      const colCenter = i === 0 ? (4 + colW) / 2 : colW * i + colW / 2;
 
-    statsGroup
-      .append("line")
-      .attr("x1", 0)
-      .attr("x2", 194)
-      .attr("y1", cardY + 78)
-      .attr("y2", cardY + 78)
-      .attr("stroke", "#e1d8cf")
-      .attr("stroke-width", 1);
-
-    [
-      ["Division finish", ordinal(projectedDivisionPlace)],
-      ["Playoff odds", `${playoffProbability.toFixed(1)}%`],
-    ].forEach(([label, value], index) => {
-      const rowY = cardY + 88 + index * 20;
-      statsGroup
-        .append("text")
-        .attr("x", 0)
-        .attr("y", rowY)
+      statsGroup.append("text")
+        .attr("x", colCenter)
+        .attr("y", 22)
+        .attr("text-anchor", "middle")
         .attr("dominant-baseline", "hanging")
-        .attr("fill", "#6b5b4d")
-        .style("fontSize", "12px")
-        .style("fontWeight", "500")
-        .text(label);
+        .attr("fill", stat.isHero ? accentColor : "#1a1a1a")
+        .style("font-size", stat.isHero ? "30px" : "22px")
+        .style("font-weight", "700")
+        .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+        .text(stat.value);
 
-      statsGroup
-        .append("text")
-        .attr("x", 194)
-        .attr("y", rowY)
-        .attr("text-anchor", "end")
+      statsGroup.append("text")
+        .attr("x", colCenter)
+        .attr("y", 58)
+        .attr("text-anchor", "middle")
         .attr("dominant-baseline", "hanging")
-        .attr("fill", "#1f1f1f")
-        .style("fontSize", "13px")
-        .style("fontWeight", "700")
-        .text(value);
+        .attr("fill", "#9a9a9a")
+        .style("font-size", "9.5px")
+        .style("font-weight", "600")
+        .style("letter-spacing", "0.07em")
+        .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+        .text(stat.label);
+
+      if (i < stats.length - 1) {
+        const dx = (i + 1) * colW;
+        statsGroup.append("line")
+          .attr("x1", dx)
+          .attr("y1", 16)
+          .attr("x2", dx)
+          .attr("y2", cardH - 16)
+          .attr("stroke", "#ebebeb")
+          .attr("stroke-width", 1);
+      }
     });
   }, [
     actualPoints,

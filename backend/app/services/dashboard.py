@@ -216,6 +216,13 @@ def build_dashboard_payload(
         season_dates=remaining_dates,
     )
     density_cells, projected_final_wins, projected_division_place, playoff_probability = simulation_density
+
+    def _team_game(g: dict) -> bool:
+        return favorite_team in {g["home_name"], g["away_name"]}
+
+    team_completed = sum(1 for g in completed if _team_game(g))
+    team_remaining = sum(1 for g in remaining if _team_game(g))
+
     return DashboardResponse(
         season=season,
         favorite_team=favorite_team,
@@ -230,8 +237,8 @@ def build_dashboard_payload(
         ),
         meta=DashboardMeta(
             generated_at=date.today().isoformat(),
-            games_completed=len(completed),
-            games_remaining=len(remaining),
+            games_completed=team_completed,
+            games_remaining=team_remaining,
             model_source=snapshot.source,
             simulation_count=FORWARD_SIMULATIONS,
         ),
