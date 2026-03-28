@@ -136,6 +136,38 @@ class EvaluationResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Walk-forward evaluation schemas
+# ---------------------------------------------------------------------------
+
+
+class WalkForwardWindow(BaseModel):
+    window_start: str
+    window_end: str
+    train_games: int
+    test_games: int
+    log_loss: float
+    brier_score: float
+    accuracy: float
+
+
+class WalkForwardResponse(BaseModel):
+    season: int
+    evaluation_type: str
+    step_days: int
+    n_windows: int
+    n_games_scored: int
+    metrics: EvaluationMetrics
+    baselines: BaselineMetrics
+    calibration: list[CalibrationBin] = Field(default_factory=list)
+    windows: list[WalkForwardWindow] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Admin / refresh schemas
+# ---------------------------------------------------------------------------
+
+
 class RefreshResponse(BaseModel):
     status: str
     season: int

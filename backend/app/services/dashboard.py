@@ -10,6 +10,7 @@ import numpy as np
 
 from config import ALL_TEAMS, DIVISIONS, FORWARD_SIMULATIONS, LEAGUES, TEAM_TO_DIVISION
 from data_source.mlb_api import build_record, completed_game_rows, fetch_schedule, split_schedule
+from data_source.pitcher_stats import build_pitcher_quality
 
 from ..schemas import (
     DashboardMeta,
@@ -171,6 +172,7 @@ def _build_simulation_views(
     actual_points_by_team: dict[str, list[WinPoint]],
     starting_wins_by_team: dict[str, int],
     season_dates: list[str],
+    season: int = 0,
     n_sims: int = FORWARD_SIMULATIONS,
 ) -> dict[str, TeamSimulationView]:
     team_to_idx = {name: idx for idx, name in enumerate(snapshot.teams)}
@@ -211,7 +213,17 @@ def _build_simulation_views(
     defense_draws = snapshot.defense_array()[sample_idx]
     park_draws = snapshot.park_array()[sample_idx]
     alpha_draws = snapshot.alpha_array()[sample_idx]
+    bp_draws = snapshot.beta_pitcher_array()[sample_idx]
+    bd_draws = snapshot.beta_division_array()[sample_idx]
     has_overdispersion = snapshot.alpha is not None
+
+    if season == 0:
+        season = snapshot.season
+    all_pitcher_names = []
+    for game in remaining_games:
+        all_pitcher_names.append(game.get("home_probable_pitcher", ""))
+        all_pitcher_names.append(game.get("away_probable_pitcher", ""))
+    pq_map = build_pitcher_quality(season, tuple(sorted(set(all_pitcher_names))))
 
     cumulative_wins = np.zeros((n_sims, team_count), dtype=int)
     for team_name, record in actual_record.items():
@@ -222,7 +234,6 @@ def _build_simulation_views(
     for game in remaining_games:
         games_by_date[game["game_date"][:10]].append(game)
 
-    density_cells: list[SimulationDensityCell] = []
     for game_date in season_dates:
         for game in games_by_date.get(game_date, []):
             home_name = game["home_name"]
@@ -230,13 +241,21 @@ def _build_simulation_views(
 
             home_idx = team_to_idx[home_name]
             away_idx = team_to_idx[away_name]
+            hpq = pq_map.get(game.get("home_probable_pitcher", ""), 0.0)
+            apq = pq_map.get(game.get("away_probable_pitcher", ""), 0.0)
+            is_div = 1.0 if TEAM_TO_DIVISION.get(home_name) == TEAM_TO_DIVISION.get(away_name) else 0.0
+
             lambda_home = np.exp(
                 mu_draws + hfa_draws + park_draws[:, home_idx]
                 + offense_draws[:, home_idx] - defense_draws[:, away_idx]
+                - bp_draws * apq
+                + bd_draws * is_div
             )
             lambda_away = np.exp(
                 mu_draws + park_draws[:, home_idx]
                 + offense_draws[:, away_idx] - defense_draws[:, home_idx]
+                - bp_draws * hpq
+                + bd_draws * is_div
             )
 
             if has_overdispersion:
@@ -359,6 +378,7 @@ def _build_all_dashboard_payloads_uncached(
         actual_points_by_team=actual_points_by_team,
         starting_wins_by_team=starting_wins_by_team,
         season_dates=remaining_dates,
+        season=season,
     )
     team_ratings, run_diff, team_to_idx = _build_team_ratings(snapshot)
     remaining_schedule_views = _build_remaining_schedule_views(remaining, run_diff, team_to_idx)

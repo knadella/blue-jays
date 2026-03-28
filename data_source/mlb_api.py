@@ -122,6 +122,8 @@ def completed_game_rows(completed_games: list[dict]) -> list[dict]:
                 "away_team": away,
                 "home_runs": int(home_score),
                 "away_runs": int(away_score),
+                "home_pitcher": game.get("home_probable_pitcher", ""),
+                "away_pitcher": game.get("away_probable_pitcher", ""),
             }
         )
     return rows

@@ -2,11 +2,32 @@
 
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
 
-DEFAULT_SEASON = 2026
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    return int(raw)
+
+
+DEFAULT_SEASON = _env_int("MLB_SEASON", 2026)
 POSTERIOR_RETENTION = 2 / 3
+
+# If set, POST /api/admin/* requires header X-Admin-Key: <value> (recommended in production).
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip() or None
+
+# Comma-separated origins for CORS (production frontend URL(s)).
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if o.strip()
+]
 POSTERIOR_DRAWS = 750
 POSTERIOR_TUNE = 750
 POSTERIOR_CHAINS = 2
@@ -15,6 +36,30 @@ POSTERIOR_CACHE_DIR = Path(".cache/posteriors")
 FRONTEND_DIST_DIR = Path("frontend/dist")
 LEAGUE_BASELINE_RUNS = 4.5
 DEFAULT_HFA_LOG_RUNS = 0.05
+
+# ---------------------------------------------------------------------------
+# Adaptive prior retention: prior-season influence decays as games accumulate
+# ---------------------------------------------------------------------------
+PRIOR_RETENTION_HALF_LIFE_GAMES = 400
+
+
+def compute_prior_retention(
+    n_games: int,
+    half_life_games: int = PRIOR_RETENTION_HALF_LIFE_GAMES,
+) -> float:
+    """Prior-season retention that decays with current-season sample size.
+
+    At 0 games: ~1.0  (lean heavily on prior season)
+    At 400 games (~1/6 of season): ~0.5
+    At 2400 games (full season): ~0.02
+    """
+    return math.exp(-math.log(2) * n_games / half_life_games)
+
+
+# ---------------------------------------------------------------------------
+# Recency weighting: recent games count more than early-season games
+# ---------------------------------------------------------------------------
+RECENCY_HALF_LIFE_DAYS = 30
 
 # ---------------------------------------------------------------------------
 # 2024 final regular-season records  (W, L)

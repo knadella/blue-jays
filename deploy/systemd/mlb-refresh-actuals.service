@@ -1,0 +1,15 @@
+[Unit]
+Description=MLB Forecast — refresh game scores (admin API)
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Adjust paths and environment for your server layout
+WorkingDirectory=/opt/mlb
+Environment=API_BASE_URL=http://127.0.0.1:8000
+# Environment=ADMIN_API_KEY=...
+# Environment=MLB_SEASON=2026
+ExecStart=/opt/mlb/scripts/call_admin.sh refresh
+
+[Install]
+WantedBy=multi-user.target

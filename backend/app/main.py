@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Annotated, Optional
 
-from fastapi import FastAPI, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import ALL_TEAMS, DEFAULT_SEASON
+from config import ADMIN_API_KEY, ALL_TEAMS, CORS_ORIGINS, DEFAULT_SEASON
 
 from .schemas import (
     BaselineMetrics,
@@ -19,19 +20,31 @@ from .schemas import (
     MCMCDiagnostics,
     RefitResponse,
     RefreshResponse,
+    WalkForwardResponse,
+    WalkForwardWindow,
 )
 from .services.dashboard import build_dashboard_payload
-from .services.evaluation import build_evaluation
+from .services.evaluation import build_evaluation, build_walk_forward_evaluation
 from .services.refresh import refit_model, refresh_actuals
 
 app = FastAPI(title="MLB Forecast API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def verify_admin_key(
+    x_admin_key: Annotated[Optional[str], Header(alias="X-Admin-Key")] = None,
+) -> None:
+    """Require X-Admin-Key when ADMIN_API_KEY is configured (production)."""
+    if not ADMIN_API_KEY:
+        return
+    if not x_admin_key or x_admin_key != ADMIN_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-Admin-Key")
 
 
 @app.get("/api/health")
@@ -76,6 +89,30 @@ def evaluate(
     )
 
 
+@app.get("/api/evaluate/walkforward", response_model=WalkForwardResponse)
+async def evaluate_walkforward(
+    season: int = Query(DEFAULT_SEASON, ge=2000, le=2100),
+    step_days: int = Query(7, ge=1, le=30),
+) -> WalkForwardResponse:
+    """Out-of-sample walk-forward evaluation.
+
+    Fits the model repeatedly on expanding windows and scores predictions
+    on unseen future games.  Slow (many MCMC fits) -- runs in a worker thread.
+    """
+    raw = await asyncio.to_thread(build_walk_forward_evaluation, season, step_days)
+    return WalkForwardResponse(
+        season=raw["season"],
+        evaluation_type=raw["evaluation_type"],
+        step_days=raw["step_days"],
+        n_windows=raw["n_windows"],
+        n_games_scored=raw["n_games_scored"],
+        metrics=EvaluationMetrics(**raw["metrics"]),
+        baselines=BaselineMetrics(**raw["baselines"]),
+        calibration=[CalibrationBin(**b) for b in raw["calibration"]],
+        windows=[WalkForwardWindow(**w) for w in raw["windows"]],
+    )
+
+
 # ---------------------------------------------------------------------------
 # Admin endpoints (triggered by external cron / scheduler)
 # ---------------------------------------------------------------------------
@@ -83,6 +120,7 @@ def evaluate(
 
 @app.post("/api/admin/refresh-actuals", response_model=RefreshResponse)
 def admin_refresh_actuals(
+    _auth: Annotated[None, Depends(verify_admin_key)],
     season: int = Query(DEFAULT_SEASON, ge=2000, le=2100),
 ) -> RefreshResponse:
     """Clear caches and re-fetch game scores from the MLB API.
@@ -95,6 +133,7 @@ def admin_refresh_actuals(
 
 @app.post("/api/admin/refit-model", response_model=RefitResponse)
 async def admin_refit_model(
+    _auth: Annotated[None, Depends(verify_admin_key)],
     season: int = Query(DEFAULT_SEASON, ge=2000, le=2100),
 ) -> RefitResponse:
     """Fetch fresh data, run a full MCMC refit, and update caches.

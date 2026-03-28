@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -25,6 +25,10 @@ class PosteriorSnapshot:
     defense: list[list[float]]
     park: Optional[list[list[float]]] = None
     alpha: Optional[list[float]] = None
+    beta_pitcher: Optional[list[float]] = None
+    beta_rest: Optional[list[float]] = None
+    beta_momentum: Optional[list[float]] = None
+    beta_division: Optional[list[float]] = None
     diagnostics: Optional[dict] = None
 
     @property
@@ -79,6 +83,49 @@ class PosteriorSnapshot:
             self._alpha_array_cache = cached
         return cached
 
+    def beta_pitcher_array(self) -> np.ndarray:
+        cached = getattr(self, "_beta_pitcher_array_cache", None)
+        if cached is None:
+            if self.beta_pitcher is not None:
+                cached = np.asarray(self.beta_pitcher, dtype=float)
+            else:
+                cached = np.zeros(self.draw_count)
+            self._beta_pitcher_array_cache = cached
+        return cached
+
+    def beta_rest_array(self) -> np.ndarray:
+        cached = getattr(self, "_beta_rest_array_cache", None)
+        if cached is None:
+            if self.beta_rest is not None:
+                cached = np.asarray(self.beta_rest, dtype=float)
+            else:
+                cached = np.zeros(self.draw_count)
+            self._beta_rest_array_cache = cached
+        return cached
+
+    def beta_momentum_array(self) -> np.ndarray:
+        cached = getattr(self, "_beta_momentum_array_cache", None)
+        if cached is None:
+            if self.beta_momentum is not None:
+                cached = np.asarray(self.beta_momentum, dtype=float)
+            else:
+                cached = np.zeros(self.draw_count)
+            self._beta_momentum_array_cache = cached
+        return cached
+
+    def beta_division_array(self) -> np.ndarray:
+        cached = getattr(self, "_beta_division_array_cache", None)
+        if cached is None:
+            if self.beta_division is not None:
+                cached = np.asarray(self.beta_division, dtype=float)
+            else:
+                cached = np.zeros(self.draw_count)
+            self._beta_division_array_cache = cached
+        return cached
+
+
+_SNAPSHOT_FIELD_NAMES = frozenset(f.name for f in fields(PosteriorSnapshot))
+
 
 def snapshot_directory(season: int) -> Path:
     path = POSTERIOR_CACHE_DIR / str(season)
@@ -93,7 +140,8 @@ def latest_snapshot_path(season: int) -> Optional[Path]:
 
 @lru_cache(maxsize=8)
 def _load_snapshot_from_path(path_str: str) -> PosteriorSnapshot:
-    payload = json.loads(Path(path_str).read_text())
+    raw = json.loads(Path(path_str).read_text())
+    payload = {k: v for k, v in raw.items() if k in _SNAPSHOT_FIELD_NAMES}
     return PosteriorSnapshot(**payload)
 
 

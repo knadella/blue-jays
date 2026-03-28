@@ -13,8 +13,14 @@ from config import (
     LEAGUE_BASELINE_RUNS,
     POSTERIOR_CHAINS,
     POSTERIOR_DRAWS,
-    POSTERIOR_RETENTION,
     POSTERIOR_TUNE,
+    RECENCY_HALF_LIFE_DAYS,
+    compute_prior_retention,
+)
+from data_source.game_features import (
+    compute_division_indicator,
+    compute_momentum,
+    compute_rest_days,
 )
 from data_source.mlb_api import (
     completed_game_rows,
@@ -22,6 +28,7 @@ from data_source.mlb_api import (
     split_schedule,
     summarize_team_performance,
 )
+from data_source.pitcher_stats import pitcher_quality_arrays
 
 from .storage import PosteriorSnapshot, load_latest_snapshot, save_snapshot
 
@@ -47,7 +54,8 @@ def _extract_diagnostics(idata) -> dict | None:
         import arviz as az
 
         var_names = ["mu", "hfa", "sigma_off", "sigma_def", "sigma_park",
-                     "alpha", "offense_offset", "defense_offset", "park_offset"]
+                     "alpha", "beta_pitcher", "beta_rest", "beta_momentum",
+                     "beta_division", "offense_offset", "defense_offset", "park_offset"]
         summary_df = az.summary(idata, var_names=var_names)
         divergences = int(idata.sample_stats["diverging"].values.sum())
         rhat_max = float(summary_df["r_hat"].max())
@@ -82,6 +90,8 @@ def _sample_prior_snapshot(
     draws: int,
     rng: np.random.Generator,
     source: str,
+    n_current_games: int = 0,
+    skip_save: bool = False,
 ) -> PosteriorSnapshot:
     team_count = len(teams)
     baseline_mu = np.log(LEAGUE_BASELINE_RUNS)
@@ -95,16 +105,17 @@ def _sample_prior_snapshot(
     prior_park_mean = np.zeros(team_count)
 
     if prior_snapshot is not None and prior_snapshot.teams == teams:
-        prior_offense_mean = POSTERIOR_RETENTION * prior_snapshot.offense_array().mean(axis=0)
-        prior_defense_mean = POSTERIOR_RETENTION * prior_snapshot.defense_array().mean(axis=0)
-        prior_park_mean = POSTERIOR_RETENTION * prior_snapshot.park_array().mean(axis=0)
+        retention = compute_prior_retention(n_current_games)
+        prior_offense_mean = retention * prior_snapshot.offense_array().mean(axis=0)
+        prior_defense_mean = retention * prior_snapshot.defense_array().mean(axis=0)
+        prior_park_mean = retention * prior_snapshot.park_array().mean(axis=0)
         mu_mean = (
-            POSTERIOR_RETENTION * prior_snapshot.mu_array().mean()
-            + (1 - POSTERIOR_RETENTION) * baseline_mu
+            retention * prior_snapshot.mu_array().mean()
+            + (1 - retention) * baseline_mu
         )
         hfa_mean = (
-            POSTERIOR_RETENTION * prior_snapshot.hfa_array().mean()
-            + (1 - POSTERIOR_RETENTION) * baseline_hfa
+            retention * prior_snapshot.hfa_array().mean()
+            + (1 - retention) * baseline_hfa
         )
 
     offense = rng.normal(loc=prior_offense_mean, scale=0.08, size=(draws, team_count))
@@ -129,7 +140,8 @@ def _sample_prior_snapshot(
         park=park.tolist(),
         alpha=alpha_samples.tolist(),
     )
-    save_snapshot(snapshot)
+    if not skip_save:
+        save_snapshot(snapshot)
     return snapshot
 
 
@@ -265,8 +277,11 @@ def _fit_snapshot_from_games(
     chains: int,
     rng: np.random.Generator,
     source: str,
+    skip_save: bool = False,
 ) -> PosteriorSnapshot:
-    if len(completed_games) < 10:
+    n_games = len(completed_games)
+
+    if n_games < 10:
         return _sample_prior_snapshot(
             season=season,
             teams=teams,
@@ -274,6 +289,8 @@ def _fit_snapshot_from_games(
             draws=draws,
             rng=rng,
             source="prior-bootstrap" if prior_snapshot is None else f"{prior_snapshot.source}-bootstrap",
+            n_current_games=n_games,
+            skip_save=skip_save,
         )
 
     try:
@@ -289,6 +306,8 @@ def _fit_snapshot_from_games(
             draws=draws,
             rng=rng,
             source="prior-fallback" if prior_snapshot is None else f"{prior_snapshot.source}-fallback",
+            n_current_games=n_games,
+            skip_save=skip_save,
         )
 
     team_index = {team: idx for idx, team in enumerate(teams)}
@@ -296,6 +315,22 @@ def _fit_snapshot_from_games(
     away_team_idx = np.asarray([team_index[g["away_team"]] for g in completed_games], dtype=int)
     home_runs = np.asarray([g["home_runs"] for g in completed_games], dtype=int)
     away_runs = np.asarray([g["away_runs"] for g in completed_games], dtype=int)
+
+    # Starting pitcher quality (z-scored ERA, positive = better)
+    home_pq, away_pq = pitcher_quality_arrays(completed_games, season)
+
+    # Rest days (log-scaled), momentum (centered win rate), division indicator
+    home_rest, away_rest = compute_rest_days(completed_games)
+    home_mom, away_mom = compute_momentum(completed_games)
+    is_div = compute_division_indicator(completed_games)
+
+    # Recency weighting: exponential decay so recent games matter more
+    game_dates = np.array([g["game_date"] for g in completed_games])
+    unique_dates = np.unique(game_dates)
+    date_to_day = {d: i for i, d in enumerate(sorted(unique_dates))}
+    game_days = np.array([date_to_day[d] for d in game_dates], dtype=float)
+    decay_rate = np.log(2) / RECENCY_HALF_LIFE_DAYS
+    weights = np.exp(-decay_rate * (game_days.max() - game_days))
 
     baseline_mu = np.log(LEAGUE_BASELINE_RUNS)
     prior_offense_mean = np.zeros(len(teams))
@@ -305,24 +340,24 @@ def _fit_snapshot_from_games(
     hfa_mean = DEFAULT_HFA_LOG_RUNS
 
     if prior_snapshot is not None and prior_snapshot.teams == teams:
-        prior_offense_mean = POSTERIOR_RETENTION * prior_snapshot.offense_array().mean(axis=0)
-        prior_defense_mean = POSTERIOR_RETENTION * prior_snapshot.defense_array().mean(axis=0)
-        prior_park_mean = POSTERIOR_RETENTION * prior_snapshot.park_array().mean(axis=0)
+        retention = compute_prior_retention(n_games)
+        prior_offense_mean = retention * prior_snapshot.offense_array().mean(axis=0)
+        prior_defense_mean = retention * prior_snapshot.defense_array().mean(axis=0)
+        prior_park_mean = retention * prior_snapshot.park_array().mean(axis=0)
         mu_mean = (
-            POSTERIOR_RETENTION * prior_snapshot.mu_array().mean()
-            + (1 - POSTERIOR_RETENTION) * baseline_mu
+            retention * prior_snapshot.mu_array().mean()
+            + (1 - retention) * baseline_mu
         )
         hfa_mean = (
-            POSTERIOR_RETENTION * prior_snapshot.hfa_array().mean()
-            + (1 - POSTERIOR_RETENTION) * DEFAULT_HFA_LOG_RUNS
+            retention * prior_snapshot.hfa_array().mean()
+            + (1 - retention) * DEFAULT_HFA_LOG_RUNS
         )
 
-    coords = {"team": teams, "game": np.arange(len(completed_games))}
+    coords = {"team": teams, "game": np.arange(n_games)}
     with pm.Model(coords=coords):
         mu = pm.Normal("mu", mu=mu_mean, sigma=0.2)
         hfa = pm.Normal("hfa", mu=hfa_mean, sigma=0.02)
 
-        # Improvement 1: tighter priors to reduce overconfidence in extremes
         sigma_off = pm.HalfNormal("sigma_off", sigma=0.12)
         sigma_def = pm.HalfNormal("sigma_def", sigma=0.12)
 
@@ -349,7 +384,6 @@ def _fit_snapshot_from_games(
             dims="team",
         )
 
-        # Improvement 2: park effects (inflates/deflates scoring for BOTH teams)
         sigma_park = pm.HalfNormal("sigma_park", sigma=0.1)
         park_offset = pm.Normal(
             "park_offset",
@@ -363,32 +397,40 @@ def _fit_snapshot_from_games(
             dims="team",
         )
 
-        # Improvement 3: Negative Binomial for overdispersion
         alpha = pm.Gamma("alpha", mu=4.0, sigma=2.0)
+
+        # Game-level covariates
+        beta_pitcher = pm.HalfNormal("beta_pitcher", sigma=0.1)
+        beta_rest = pm.Normal("beta_rest", mu=0.0, sigma=0.05)
+        beta_momentum = pm.Normal("beta_momentum", mu=0.0, sigma=0.1)
+        beta_division = pm.Normal("beta_division", mu=0.0, sigma=0.05)
 
         log_lambda_home = (
             mu + hfa + park[home_team_idx]
             + offense[home_team_idx] - defense[away_team_idx]
+            - beta_pitcher * away_pq
+            + beta_rest * (home_rest - away_rest)
+            + beta_momentum * home_mom
+            + beta_division * is_div
         )
         log_lambda_away = (
             mu + park[home_team_idx]
             + offense[away_team_idx] - defense[home_team_idx]
+            - beta_pitcher * home_pq
+            + beta_rest * (away_rest - home_rest)
+            + beta_momentum * away_mom
+            + beta_division * is_div
         )
 
-        pm.NegativeBinomial(
-            "home_runs",
-            mu=pm.math.exp(log_lambda_home),
-            alpha=alpha,
-            observed=home_runs,
-            dims="game",
+        # Recency-weighted likelihood via pm.Potential
+        home_dist = pm.NegativeBinomial.dist(
+            mu=pm.math.exp(log_lambda_home), alpha=alpha,
         )
-        pm.NegativeBinomial(
-            "away_runs",
-            mu=pm.math.exp(log_lambda_away),
-            alpha=alpha,
-            observed=away_runs,
-            dims="game",
+        away_dist = pm.NegativeBinomial.dist(
+            mu=pm.math.exp(log_lambda_away), alpha=alpha,
         )
+        pm.Potential("home_weighted", weights * pm.logp(home_dist, home_runs))
+        pm.Potential("away_weighted", weights * pm.logp(away_dist, away_runs))
 
         idata = pm.sample(
             draws=draws,
@@ -413,9 +455,14 @@ def _fit_snapshot_from_games(
         defense=posterior["defense"].transpose("sample", "team").values.tolist(),
         park=posterior["park"].transpose("sample", "team").values.tolist(),
         alpha=posterior["alpha"].values.tolist(),
+        beta_pitcher=posterior["beta_pitcher"].values.tolist(),
+        beta_rest=posterior["beta_rest"].values.tolist(),
+        beta_momentum=posterior["beta_momentum"].values.tolist(),
+        beta_division=posterior["beta_division"].values.tolist(),
         diagnostics=diagnostics,
     )
-    save_snapshot(snapshot)
+    if not skip_save:
+        save_snapshot(snapshot)
     return snapshot
 
 

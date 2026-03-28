@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily MLB score refresh
+
+[Timer]
+# Daily 06:15 local time (edit OnCalendar for your timezone)
+OnCalendar=*-*-* 06:15:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,27 @@
+# Weekly: full MCMC refit + new posterior snapshot. Slow; use generous timeout.
+name: Schedule — refit model
+
+on:
+  schedule:
+    # Monday ~6 AM US Eastern
+    - cron: "0 11 * * 1"
+  workflow_dispatch:
+
+jobs:
+  refit:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.API_BASE_URL != '' }}
+    steps:
+      - name: POST /api/admin/refit-model
+        env:
+          BASE: ${{ secrets.API_BASE_URL }}
+          KEY: ${{ secrets.ADMIN_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${KEY:-}" ]; then
+            curl -fsS --max-time 900 -X POST "${BASE%/}/api/admin/refit-model" \
+              -H "X-Admin-Key: ${KEY}"
+          else
+            curl -fsS --max-time 900 -X POST "${BASE%/}/api/admin/refit-model"
+          fi
+          echo
