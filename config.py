@@ -64,6 +64,13 @@ POSTERIOR_CHAINS = _env_int("POSTERIOR_CHAINS", 2)
 PRIOR_BACKFILL_DRAWS = _env_int("PRIOR_BACKFILL_DRAWS", 400)
 PRIOR_BACKFILL_TUNE = _env_int("PRIOR_BACKFILL_TUNE", 400)
 PRIOR_BACKFILL_CHAINS = _env_int("PRIOR_BACKFILL_CHAINS", 1)
+
+# First dashboard request with no saved snapshot: lighter MCMC so the HTTP
+# request returns in minutes, not tens of minutes. Weekly admin refit uses full POSTERIOR_*.
+COLD_START_POSTERIOR_DRAWS = _env_int("COLD_START_POSTERIOR_DRAWS", 400)
+COLD_START_POSTERIOR_TUNE = _env_int("COLD_START_POSTERIOR_TUNE", 400)
+COLD_START_POSTERIOR_CHAINS = _env_int("COLD_START_POSTERIOR_CHAINS", 2)
+
 FORWARD_SIMULATIONS = int(os.getenv("FORWARD_SIMULATIONS", "2500"))
 # Persistent disk on Fly.io: set POSTERIOR_CACHE_DIR=/data/posteriors and mount a volume on /data
 _POSTERIOR_CACHE_ENV = os.getenv("POSTERIOR_CACHE_DIR", "").strip()

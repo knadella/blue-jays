@@ -38,6 +38,7 @@ export default function App() {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [slowLoadHint, setSlowLoadHint] = useState(false);
   const dashboardCacheRef = useRef(new Map<string, DashboardResponse>());
   const prefetchInFlightRef = useRef(new Set<string>());
 
@@ -106,6 +107,18 @@ export default function App() {
 
     return () => controller.abort();
   }, [team]);
+
+  useEffect(() => {
+    if (!loading) {
+      setSlowLoadHint(false);
+      return;
+    }
+    const id = window.setTimeout(() => setSlowLoadHint(true), 8000);
+    return () => {
+      window.clearTimeout(id);
+      setSlowLoadHint(false);
+    };
+  }, [loading]);
 
   useEffect(() => {
     if (loading || !dashboard || dashboard.favorite_team !== team) {
@@ -195,8 +208,19 @@ export default function App() {
       </nav>
 
       {loading && (
-        <div className="section-card">
-          {dashboard ? `Updating ${team} dashboard...` : "Loading dashboard data..."}
+        <div className="section-card loading-card">
+          <p className="loading-primary">
+            {dashboard ? `Updating ${team} dashboard...` : "Loading dashboard data..."}
+          </p>
+          {slowLoadHint && (
+            <p className="loading-hint">
+              The first request to the API can take several minutes while the model fits on the
+              server (this is normal on a new deploy or empty cache). Later loads are fast once a
+              snapshot exists. If this never finishes, confirm the GitHub Actions build used the
+              correct <code>VITE_API_URL</code> and that Fly <code>CORS_ORIGINS</code> includes{" "}
+              <code>https://YOURUSERNAME.github.io</code> (host only).
+            </p>
+          )}
         </div>
       )}
       {error && <div className="section-card error-card">{error}</div>}

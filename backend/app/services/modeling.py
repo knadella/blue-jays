@@ -9,6 +9,9 @@ from typing import Optional
 import numpy as np
 
 from config import (
+    COLD_START_POSTERIOR_CHAINS,
+    COLD_START_POSTERIOR_DRAWS,
+    COLD_START_POSTERIOR_TUNE,
     DEFAULT_HFA_LOG_RUNS,
     LEAGUE_BASELINE_RUNS,
     POSTERIOR_CHAINS,
@@ -484,14 +487,21 @@ def fit_or_load_snapshot(
         existing = load_latest_snapshot(season)
         if existing is not None and existing.teams == teams:
             return existing
+        fit_draws = min(draws, COLD_START_POSTERIOR_DRAWS)
+        fit_tune = min(tune, COLD_START_POSTERIOR_TUNE)
+        fit_chains = min(chains, max(1, COLD_START_POSTERIOR_CHAINS))
+        source = "pymc-fit-cold-start"
+    else:
+        fit_draws, fit_tune, fit_chains = draws, tune, chains
+        source = "pymc-fit"
 
     rng = np.random.default_rng(seed=season)
     prior_snapshot = _load_prior_seed(
         season=season,
         teams=teams,
-        draws=draws,
-        tune=tune,
-        chains=chains,
+        draws=fit_draws,
+        tune=fit_tune,
+        chains=fit_chains,
         rng=rng,
     )
     return _fit_snapshot_from_games(
@@ -499,9 +509,9 @@ def fit_or_load_snapshot(
         completed_games=completed_games,
         teams=teams,
         prior_snapshot=prior_snapshot,
-        draws=draws,
-        tune=tune,
-        chains=chains,
+        draws=fit_draws,
+        tune=fit_tune,
+        chains=fit_chains,
         rng=rng,
-        source="pymc-fit",
+        source=source,
     )
