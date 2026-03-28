@@ -1,5 +1,9 @@
 # Fly.io — https://fly.io/docs/launch/
-# Replace `app` with your app name after `fly apps create` or `fly launch`.
+#
+# First deploy: create the app once (names are global on Fly), then deploy:
+#   fly apps create <app> --org personal
+#   fly deploy
+# If the name is taken, pick another and set `app` below to match.
 
 app = "mlb-forecast-api"
 primary_region = "iad"
@@ -23,7 +27,7 @@ primary_region = "iad"
   [[http_service.checks]]
     interval = "30s"
     timeout = "5s"
-    grace_period = "120s"
+    grace_period = "60s"
     method = "GET"
     path = "/api/health"
 

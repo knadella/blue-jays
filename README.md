@@ -181,14 +181,22 @@ The repo includes a **`Dockerfile`** and **`fly.toml`**: Python 3.11, **2GB RAM*
 
 1. Install the CLI: [Install flyctl](https://fly.io/docs/hands-on/install-flyctl/) (e.g. `brew install flyctl`).
 2. Log in: `fly auth login`
-3. Open **`fly.toml`** and set **`app`** to a **globally unique** name (or run `fly apps create <name>` and match it here).
-4. Deploy (creates the app and, on first deploy, the volume from `initial_size` in `[mounts]`):
+3. Open **`fly.toml`** and set **`app`** to a **globally unique** name on Fly.io.
+4. **Create the app once** (required before the first `fly deploy`; skip if the app already exists):
+
+   ```bash
+   fly apps create <same-name-as-in-fly.toml> --org personal
+   ```
+
+   If you get “already exists” or “name unavailable”, pick a new name and update **`app`** in `fly.toml`.
+
+5. Deploy (first deploy also provisions the volume from `initial_size` in `[mounts]`):
 
    ```bash
    fly deploy
    ```
 
-5. Set runtime secrets (same `ADMIN_API_KEY` you use for GitHub Actions, plus your real frontend origin):
+6. Set runtime secrets (same `ADMIN_API_KEY` you use for GitHub Actions, plus your real frontend origin):
 
    ```bash
    fly secrets set ADMIN_API_KEY="your-key" CORS_ORIGINS="https://your-frontend.example.com"
@@ -196,7 +204,7 @@ The repo includes a **`Dockerfile`** and **`fly.toml`**: Python 3.11, **2GB RAM*
 
    Optional: `MLB_SEASON=2026`
 
-6. Your API base URL is **`https://<app>.fly.dev`**. For production builds, set the frontend API host (no trailing slash):
+7. Your API base URL is **`https://<app>.fly.dev`**. For production builds, set the frontend API host (no trailing slash):
 
    ```bash
    cd frontend && VITE_API_URL=https://<app>.fly.dev npm run build
