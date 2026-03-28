@@ -4,6 +4,7 @@ import { fetchDashboard, type DashboardResponse } from "./api";
 import { CumulativeWinsChart } from "./components/CumulativeWinsChart";
 import { ScheduleHeatmap } from "./components/ScheduleHeatmap";
 import { TeamRatingCharts } from "./components/TeamRatingCharts";
+import { getTeamAbbrev } from "./teamMetadata";
 
 const LEAGUE_DIVISIONS: Record<string, string[]> = {
   AL: ["East", "Central", "West"],
@@ -17,24 +18,6 @@ const DIVISION_TEAMS: Record<string, string[]> = {
   "NL East": ["Philadelphia Phillies", "Atlanta Braves", "New York Mets", "Washington Nationals", "Miami Marlins"],
   "NL Central": ["Milwaukee Brewers", "Chicago Cubs", "St. Louis Cardinals", "Cincinnati Reds", "Pittsburgh Pirates"],
   "NL West": ["Los Angeles Dodgers", "San Diego Padres", "Arizona Diamondbacks", "San Francisco Giants", "Colorado Rockies"],
-};
-
-const TEAM_ABBREV: Record<string, string> = {
-  "Arizona Diamondbacks": "ARI", "Atlanta Braves": "ATL",
-  "Baltimore Orioles": "BAL", "Boston Red Sox": "BOS",
-  "Chicago Cubs": "CHC", "Chicago White Sox": "CHW",
-  "Cincinnati Reds": "CIN", "Cleveland Guardians": "CLE",
-  "Colorado Rockies": "COL", "Detroit Tigers": "DET",
-  "Houston Astros": "HOU", "Kansas City Royals": "KC",
-  "Los Angeles Angels": "LAA", "Los Angeles Dodgers": "LAD",
-  "Miami Marlins": "MIA", "Milwaukee Brewers": "MIL",
-  "Minnesota Twins": "MIN", "New York Mets": "NYM",
-  "New York Yankees": "NYY", "Oakland Athletics": "OAK",
-  "Philadelphia Phillies": "PHI", "Pittsburgh Pirates": "PIT",
-  "San Diego Padres": "SD", "San Francisco Giants": "SF",
-  "Seattle Mariners": "SEA", "St. Louis Cardinals": "STL",
-  "Tampa Bay Rays": "TB", "Texas Rangers": "TEX",
-  "Toronto Blue Jays": "TOR", "Washington Nationals": "WSH",
 };
 
 export default function App() {
@@ -178,7 +161,7 @@ export default function App() {
               onClick={() => setTeam(t)}
               title={t}
             >
-              {TEAM_ABBREV[t] ?? t}
+              {getTeamAbbrev(t)}
             </button>
           ))}
         </div>

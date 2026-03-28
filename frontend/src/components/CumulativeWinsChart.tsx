@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as d3 from "d3";
 
 import type { SimulationDensityCell, WinPoint } from "../api";
+import { getTeamAbbrev, getTeamColor, getTeamLogoPath } from "../teamMetadata";
 
 interface Props {
   actualPoints: WinPoint[];
@@ -28,27 +29,6 @@ function ordinal(value: number) {
     default:
       return `${value}th`;
   }
-}
-
-function teamAccentColor(team: string) {
-  if (team === "Toronto Blue Jays") {
-    return "#134A8E";
-  }
-  return "#0d5c75";
-}
-
-function teamSecondaryColor(team: string) {
-  if (team === "Toronto Blue Jays") {
-    return "#E63946";
-  }
-  return "#083D4A";
-}
-
-function teamMarkerGlyph(team: string) {
-  if (team === "Toronto Blue Jays") {
-    return "🐦";
-  }
-  return "⚾";
 }
 
 export function CumulativeWinsChart({
@@ -158,9 +138,9 @@ export function CumulativeWinsChart({
       .range([height - margin.bottom, margin.top]);
     const statX = x(new Date(`${season}-03-16`));
     const statY = y(80);
-    const accentColor = teamAccentColor(team);
-    const secondaryColor = teamSecondaryColor(team);
-    const tipGlyph = teamMarkerGlyph(team);
+    const accentColor = getTeamColor(team);
+    const teamAbbrev = getTeamAbbrev(team);
+    const teamLogoPath = getTeamLogoPath(team);
 
     const line = d3
       .line<{ date: Date; wins: number }>()
@@ -340,33 +320,25 @@ export function CumulativeWinsChart({
         .attr("stroke", accentColor)
         .attr("stroke-width", 2.5);
 
-      tipGroup
-        .append("text")
-        .attr("text-anchor", "middle")
-        .attr("dominant-baseline", "central")
-        .attr("font-size", team === "Toronto Blue Jays" ? 18 : 16)
-        .text(tipGlyph);
+      if (teamLogoPath) {
+        tipGroup
+          .append("image")
+          .attr("href", teamLogoPath)
+          .attr("x", -11)
+          .attr("y", -11)
+          .attr("width", 22)
+          .attr("height", 22)
+          .attr("preserveAspectRatio", "xMidYMid meet");
+      } else {
+        tipGroup
+          .append("text")
+          .attr("text-anchor", "middle")
+          .attr("dominant-baseline", "central")
+          .attr("font-size", "10px")
+          .attr("font-weight", "700")
+          .text(teamAbbrev);
+      }
 
-      tipGroup
-        .append("rect")
-        .attr("x", 18)
-        .attr("y", -10)
-        .attr("width", 42)
-        .attr("height", 20)
-        .attr("rx", 10)
-        .attr("fill", accentColor)
-        .attr("opacity", 0.96);
-
-      tipGroup
-        .append("text")
-        .attr("x", 39)
-        .attr("y", 0)
-        .attr("text-anchor", "middle")
-        .attr("dominant-baseline", "central")
-        .attr("fill", "#ffffff")
-        .style("fontSize", "10px")
-        .style("fontWeight", "700")
-        .text(team === "Toronto Blue Jays" ? "TOR" : "TEAM");
     }
 
     const defs = svg.append("defs");

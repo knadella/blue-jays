@@ -2,42 +2,7 @@ import { useEffect, useRef } from "react";
 import * as d3 from "d3";
 
 import type { ScheduleGame } from "../api";
-
-const TEAM_ABBREV: Record<string, string> = {
-  "Arizona Diamondbacks": "ARI", "Atlanta Braves": "ATL",
-  "Baltimore Orioles": "BAL", "Boston Red Sox": "BOS",
-  "Chicago Cubs": "CHC", "Chicago White Sox": "CHW",
-  "Cincinnati Reds": "CIN", "Cleveland Guardians": "CLE",
-  "Colorado Rockies": "COL", "Detroit Tigers": "DET",
-  "Houston Astros": "HOU", "Kansas City Royals": "KC",
-  "Los Angeles Angels": "LAA", "Los Angeles Dodgers": "LAD",
-  "Miami Marlins": "MIA", "Milwaukee Brewers": "MIL",
-  "Minnesota Twins": "MIN", "New York Mets": "NYM",
-  "New York Yankees": "NYY", "Oakland Athletics": "OAK",
-  "Philadelphia Phillies": "PHI", "Pittsburgh Pirates": "PIT",
-  "San Diego Padres": "SD", "San Francisco Giants": "SF",
-  "Seattle Mariners": "SEA", "St. Louis Cardinals": "STL",
-  "Tampa Bay Rays": "TB", "Texas Rangers": "TEX",
-  "Toronto Blue Jays": "TOR", "Washington Nationals": "WSH",
-};
-
-const TEAM_COLORS: Record<string, string> = {
-  "Arizona Diamondbacks": "#A71930", "Atlanta Braves": "#CE1141",
-  "Baltimore Orioles": "#DF4601", "Boston Red Sox": "#BD3039",
-  "Chicago Cubs": "#0E3386", "Chicago White Sox": "#27251F",
-  "Cincinnati Reds": "#C6011F", "Cleveland Guardians": "#00385D",
-  "Colorado Rockies": "#333366", "Detroit Tigers": "#0C2340",
-  "Houston Astros": "#002D62", "Kansas City Royals": "#004687",
-  "Los Angeles Angels": "#BA0021", "Los Angeles Dodgers": "#005A9C",
-  "Miami Marlins": "#00A3E0", "Milwaukee Brewers": "#FFC52F",
-  "Minnesota Twins": "#002B5C", "New York Mets": "#002D72",
-  "New York Yankees": "#003087", "Oakland Athletics": "#003831",
-  "Philadelphia Phillies": "#E81828", "Pittsburgh Pirates": "#FDB827",
-  "San Diego Padres": "#2F241D", "San Francisco Giants": "#FD5A1E",
-  "Seattle Mariners": "#0C2C56", "St. Louis Cardinals": "#C41E3A",
-  "Tampa Bay Rays": "#092C5C", "Texas Rangers": "#003278",
-  "Toronto Blue Jays": "#134A8E", "Washington Nationals": "#AB0003",
-};
+import { getTeamAbbrev, getTeamColor } from "../teamMetadata";
 
 interface Props {
   schedule: ScheduleGame[];
@@ -46,7 +11,7 @@ interface Props {
 }
 
 function abbrev(team: string): string {
-  return TEAM_ABBREV[team] ?? team.slice(0, 3).toUpperCase();
+  return getTeamAbbrev(team);
 }
 
 interface Series {
@@ -102,7 +67,7 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
     if (!svgRef.current || schedule.length === 0) return;
 
     const seriesList = groupIntoSeries(schedule);
-    const accent = TEAM_COLORS[team] ?? "#0d5c75";
+    const accent = getTeamColor(team);
 
     const width = 1120;
     const height = 140;
