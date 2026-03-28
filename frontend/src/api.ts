@@ -59,9 +59,13 @@ export async function fetchTeams(): Promise<string[]> {
   return response.json();
 }
 
-export async function fetchDashboard(team: string, season = 2026): Promise<DashboardResponse> {
+export async function fetchDashboard(
+  team: string,
+  season = 2026,
+  signal?: AbortSignal,
+): Promise<DashboardResponse> {
   const params = new URLSearchParams({ team, season: String(season) });
-  const response = await fetch(`http://localhost:8000/api/dashboard?${params.toString()}`);
+  const response = await fetch(`http://localhost:8000/api/dashboard?${params.toString()}`, { signal });
   if (!response.ok) {
     throw new Error("Failed to fetch dashboard data.");
   }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { fetchDashboard, type DashboardResponse } from "./api";
 import { CumulativeWinsChart } from "./components/CumulativeWinsChart";
@@ -44,9 +44,12 @@ export default function App() {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const dashboardCacheRef = useRef(new Map<string, DashboardResponse>());
+  const prefetchInFlightRef = useRef(new Set<string>());
 
   const divisionKey = `${league} ${division}`;
   const divisionTeams = DIVISION_TEAMS[divisionKey] ?? [];
+  const displayedTeam = dashboard?.favorite_team ?? team;
 
   const handleLeagueChange = (next: string) => {
     setLeague(next);
@@ -61,15 +64,70 @@ export default function App() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
+    const cacheKey = `2026:${team}`;
+    const cachedDashboard = dashboardCacheRef.current.get(cacheKey);
+
+    setError(null);
+    if (cachedDashboard) {
+      setDashboard(cachedDashboard);
+      setLoading(false);
+      return () => controller.abort();
+    }
+
     setLoading(true);
-    fetchDashboard(team)
+    fetchDashboard(team, 2026, controller.signal)
       .then((payload) => {
+        dashboardCacheRef.current.set(cacheKey, payload);
         setDashboard(payload);
         setError(null);
       })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+      .catch((err: Error) => {
+        if (err.name === "AbortError") {
+          return;
+        }
+        setError(err.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => controller.abort();
   }, [team]);
+
+  useEffect(() => {
+    if (loading || !dashboard || dashboard.favorite_team !== team) {
+      return;
+    }
+
+    for (const nextTeam of divisionTeams) {
+      if (nextTeam === team) {
+        continue;
+      }
+
+      const cacheKey = `2026:${nextTeam}`;
+      if (
+        dashboardCacheRef.current.has(cacheKey) ||
+        prefetchInFlightRef.current.has(cacheKey)
+      ) {
+        continue;
+      }
+
+      prefetchInFlightRef.current.add(cacheKey);
+      fetchDashboard(nextTeam)
+        .then((payload) => {
+          dashboardCacheRef.current.set(cacheKey, payload);
+        })
+        .catch(() => {
+          // Ignore prefetch failures; the interactive request will retry.
+        })
+        .finally(() => {
+          prefetchInFlightRef.current.delete(cacheKey);
+        });
+    }
+  }, [dashboard, divisionTeams, loading, team]);
 
   return (
     <div className="app-shell">
@@ -126,10 +184,14 @@ export default function App() {
         </div>
       </nav>
 
-      {loading && <div className="section-card">Loading dashboard data...</div>}
+      {loading && (
+        <div className="section-card">
+          {dashboard ? `Updating ${team} dashboard...` : "Loading dashboard data..."}
+        </div>
+      )}
       {error && <div className="section-card error-card">{error}</div>}
 
-      {dashboard && !loading && (
+      {dashboard && (
         <>
           <section className="section-card chart-card">
             <div className="section-header">
@@ -141,7 +203,7 @@ export default function App() {
             <CumulativeWinsChart
               actualPoints={dashboard.team_simulation.actual_points}
               simulationDensity={dashboard.team_simulation.simulation_density}
-              team={dashboard.team_simulation.team}
+              team={displayedTeam}
               season={dashboard.season}
               projectedFinalWins={dashboard.team_simulation.projected_final_wins}
               projectedDivisionPlace={dashboard.team_simulation.projected_division_place}
@@ -157,7 +219,7 @@ export default function App() {
             <TeamRatingCharts
               offense={dashboard.team_ratings.offense}
               defense={dashboard.team_ratings.defense}
-              team={team}
+              team={displayedTeam}
             />
           </section>
 
@@ -168,7 +230,7 @@ export default function App() {
             </div>
             <ScheduleHeatmap
               schedule={dashboard.remaining_schedule}
-              team={team}
+              team={displayedTeam}
               season={dashboard.season}
             />
           </section>

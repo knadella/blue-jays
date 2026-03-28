@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
+from functools import lru_cache
 
 import numpy as np
 
@@ -44,18 +45,24 @@ def _season_dates(schedule: list[dict]) -> list[str]:
     return sorted({game["game_date"][:10] for game in schedule})
 
 
-def _build_actual_points_for_team(
+def _copy_model(model):
+    copy_fn = getattr(model, "model_copy", None)
+    if callable(copy_fn):
+        return copy_fn(deep=True)
+    return model.copy(deep=True)
+
+
+def _build_actual_points_by_team(
     schedule: list[dict],
     completed_games: list[dict],
-    team: str,
-) -> tuple[list[WinPoint], int, list[str]]:
+) -> tuple[dict[str, list[WinPoint]], dict[str, int], list[str]]:
     season_dates = _season_dates(schedule)
     games_by_date: dict[str, list[dict]] = defaultdict(list)
     for game in completed_games:
         games_by_date[game["game_date"][:10]].append(game)
 
-    wins = 0
-    actual_points: list[WinPoint] = []
+    wins_by_team = {team: 0 for team in ALL_TEAMS}
+    actual_points_by_team = {team: [] for team in ALL_TEAMS}
     remaining_dates: list[str] = []
     completed_date_set = set(games_by_date)
 
@@ -65,34 +72,123 @@ def _build_actual_points_for_team(
             continue
 
         for game in games_by_date[game_date]:
-            if team not in {game["home_name"], game["away_name"]}:
-                continue
             home_score = game.get("home_score")
             away_score = game.get("away_score")
             if home_score is None or away_score is None:
                 continue
-            if game["home_name"] == team and home_score > away_score:
-                wins += 1
-            elif game["away_name"] == team and away_score > home_score:
-                wins += 1
+            home_team = game["home_name"]
+            away_team = game["away_name"]
+            if home_score > away_score:
+                wins_by_team[home_team] += 1
+            elif away_score > home_score:
+                wins_by_team[away_team] += 1
 
-        actual_points.append(WinPoint(date=game_date, wins=wins))
+        for team in ALL_TEAMS:
+            actual_points_by_team[team].append(WinPoint(date=game_date, wins=wins_by_team[team]))
 
-    return actual_points, wins, remaining_dates
+    return actual_points_by_team, wins_by_team, remaining_dates
 
 
-def _build_simulation_density_for_team(
+def _build_team_ratings(
+    snapshot: PosteriorSnapshot,
+    ) -> tuple[TeamRatings, np.ndarray, dict[str, int]]:
+    mu_median = float(np.median(snapshot.mu_array()))
+    offense_medians = np.median(snapshot.offense_array(), axis=0)
+    defense_medians = np.median(snapshot.defense_array(), axis=0)
+    offense_runs = np.exp(mu_median + offense_medians)
+    defense_runs = np.exp(mu_median - defense_medians)
+
+    offense_ratings = sorted(
+        [TeamRating(team=name, value=round(float(offense_runs[i]), 2))
+         for i, name in enumerate(snapshot.teams)],
+        key=lambda r: r.value,
+        reverse=True,
+    )
+    defense_ratings = sorted(
+        [TeamRating(team=name, value=round(float(defense_runs[i]), 2))
+         for i, name in enumerate(snapshot.teams)],
+        key=lambda r: r.value,
+    )
+
+    team_to_idx = {name: idx for idx, name in enumerate(snapshot.teams)}
+    run_diff = offense_runs - defense_runs
+    return TeamRatings(offense=offense_ratings, defense=defense_ratings), run_diff, team_to_idx
+
+
+def _build_remaining_schedule_views(
+    remaining_games: list[dict],
+    run_diff: np.ndarray,
+    team_to_idx: dict[str, int],
+) -> dict[str, list[ScheduleGame]]:
+    rd_min = float(run_diff.min())
+    rd_max = float(run_diff.max())
+    rd_range = rd_max - rd_min if rd_max > rd_min else 1.0
+    schedules_by_team = {team: [] for team in ALL_TEAMS}
+
+    for game in remaining_games:
+        home_team = game["home_name"]
+        away_team = game["away_name"]
+        if home_team not in team_to_idx or away_team not in team_to_idx:
+            continue
+
+        away_strength = round((float(run_diff[team_to_idx[away_team]]) - rd_min) / rd_range, 3)
+        home_strength = round((float(run_diff[team_to_idx[home_team]]) - rd_min) / rd_range, 3)
+        game_date = game["game_date"][:10]
+
+        schedules_by_team[home_team].append(
+            ScheduleGame(
+                date=game_date,
+                opponent=away_team,
+                is_home=True,
+                opponent_strength=away_strength,
+            )
+        )
+        schedules_by_team[away_team].append(
+            ScheduleGame(
+                date=game_date,
+                opponent=home_team,
+                is_home=False,
+                opponent_strength=home_strength,
+            )
+        )
+
+    return schedules_by_team
+
+
+def _build_team_game_counts(games: list[dict]) -> dict[str, int]:
+    counts = {team: 0 for team in ALL_TEAMS}
+    for game in games:
+        counts[game["home_name"]] += 1
+        counts[game["away_name"]] += 1
+    return counts
+
+
+def _build_simulation_views(
     snapshot: PosteriorSnapshot,
     remaining_games: list[dict],
     actual_record: dict[str, dict[str, int]],
-    team: str,
-    starting_wins: int,
+    actual_points_by_team: dict[str, list[WinPoint]],
+    starting_wins_by_team: dict[str, int],
     season_dates: list[str],
     n_sims: int = FORWARD_SIMULATIONS,
-) -> tuple[list[SimulationDensityCell], int, int, float]:
+) -> dict[str, TeamSimulationView]:
     team_to_idx = {name: idx for idx, name in enumerate(snapshot.teams)}
+    team_count = len(snapshot.teams)
+    density_by_team = {team: [] for team in snapshot.teams}
+
     if not remaining_games:
-        return [], starting_wins, 1, 0.0
+        return {
+            team: TeamSimulationView(
+                team=team,
+                division=TEAM_TO_DIVISION[team],
+                actual_points=actual_points_by_team[team],
+                simulation_density=[],
+                projected_final_wins=starting_wins_by_team.get(team, 0),
+                projected_division_place=1,
+                playoff_probability=0.0,
+            )
+            for team in snapshot.teams
+        }
 
     rng = np.random.default_rng(seed=42)
     sample_idx = rng.integers(0, snapshot.draw_count, size=n_sims)
@@ -101,8 +197,7 @@ def _build_simulation_density_for_team(
     offense_draws = snapshot.offense_array()[sample_idx]
     defense_draws = snapshot.defense_array()[sample_idx]
 
-    team_idx = team_to_idx[team]
-    cumulative_wins = np.zeros((n_sims, len(snapshot.teams)), dtype=int)
+    cumulative_wins = np.zeros((n_sims, team_count), dtype=int)
     for team_name, record in actual_record.items():
         if team_name in team_to_idx:
             cumulative_wins[:, team_to_idx[team_name]] = record["w"]
@@ -131,72 +226,89 @@ def _build_simulation_density_for_team(
             cumulative_wins[:, home_idx] += home_wins
             cumulative_wins[:, away_idx] += ~home_wins
 
-        unique_wins, counts = np.unique(cumulative_wins[:, team_idx], return_counts=True)
-        for wins, count in zip(unique_wins.tolist(), counts.tolist()):
-            density_cells.append(
-                SimulationDensityCell(
-                    date=game_date,
-                    wins=int(wins),
-                    probability=round(count / n_sims, 6),
+        for team_name, team_idx in team_to_idx.items():
+            win_counts = np.bincount(cumulative_wins[:, team_idx], minlength=163)
+            for wins in np.flatnonzero(win_counts):
+                density_by_team[team_name].append(
+                    SimulationDensityCell(
+                        date=game_date,
+                        wins=int(wins),
+                        probability=round(int(win_counts[wins]) / n_sims, 6),
+                    )
                 )
-            )
 
-    final_team_wins = cumulative_wins[:, team_idx]
-    projected_final_wins = int(round(float(np.median(final_team_wins))))
+    projected_final_wins = {
+        team_name: int(round(float(np.median(cumulative_wins[:, team_idx]))))
+        for team_name, team_idx in team_to_idx.items()
+    }
 
-    division = TEAM_TO_DIVISION[team]
-    division_team_indices = np.array([team_to_idx[name] for name in DIVISIONS[division]], dtype=int)
-    noisy_division_wins = cumulative_wins[:, division_team_indices] + rng.uniform(
-        0,
-        0.01,
-        size=(n_sims, len(division_team_indices)),
-    )
-    division_order = np.argsort(-noisy_division_wins, axis=1)
-    division_places = []
-    target_local_index = int(np.where(division_team_indices == team_idx)[0][0])
-    for sim in range(n_sims):
-        place = int(np.where(division_order[sim] == target_local_index)[0][0]) + 1
-        division_places.append(place)
-    place_counts = np.bincount(division_places, minlength=len(division_team_indices) + 1)
-    projected_division_place = int(np.argmax(place_counts[1:]) + 1)
-
-    playoff_count = 0
-    for sim in range(n_sims):
-        division_winners: set[str] = set()
-        for league_divisions in LEAGUES.values():
-            for division_name in league_divisions:
-                division_teams = DIVISIONS[division_name]
-                winner = max(
-                    division_teams,
-                    key=lambda name: cumulative_wins[sim, team_to_idx[name]] + rng.uniform(0, 0.01),
-                )
-                division_winners.add(winner)
-
-        if team in division_winners:
-            playoff_count += 1
-            continue
-
-        league_prefix = TEAM_TO_DIVISION[team][:2]
-        league_teams = [
-            name for name in snapshot.teams if TEAM_TO_DIVISION[name].startswith(league_prefix)
-        ]
-        wildcard_pool = [name for name in league_teams if name not in division_winners]
-        wildcard_pool.sort(
-            key=lambda name: cumulative_wins[sim, team_to_idx[name]] + rng.uniform(0, 0.01),
-            reverse=True,
+    projected_division_place: dict[str, int] = {}
+    for division_name, division_teams in DIVISIONS.items():
+        division_team_indices = np.array([team_to_idx[name] for name in division_teams], dtype=int)
+        noisy_division_wins = cumulative_wins[:, division_team_indices] + rng.uniform(
+            0,
+            0.01,
+            size=(n_sims, len(division_team_indices)),
         )
-        if team in wildcard_pool[:3]:
-            playoff_count += 1
+        division_order = np.argsort(-noisy_division_wins, axis=1)
+        for local_idx, team_name in enumerate(division_teams):
+            places = np.argmax(division_order == local_idx, axis=1) + 1
+            place_counts = np.bincount(places, minlength=len(division_team_indices) + 1)
+            projected_division_place[team_name] = int(np.argmax(place_counts[1:]) + 1)
 
-    playoff_probability = round(100.0 * playoff_count / n_sims, 1)
-    return density_cells, projected_final_wins, projected_division_place, playoff_probability
+    noisy_all_wins = cumulative_wins + rng.uniform(0, 0.01, size=cumulative_wins.shape)
+    division_indices = {
+        division_name: np.array([team_to_idx[name] for name in division_teams], dtype=int)
+        for division_name, division_teams in DIVISIONS.items()
+    }
+    league_indices = {
+        league_name: np.array(
+            [team_to_idx[name] for division_name in division_names for name in DIVISIONS[division_name]],
+            dtype=int,
+        )
+        for league_name, division_names in LEAGUES.items()
+    }
+    playoff_mask = np.zeros((n_sims, team_count), dtype=bool)
+    for sim in range(n_sims):
+        division_winners_by_league: dict[str, list[int]] = {"AL": [], "NL": []}
+        for division_name, division_team_indices in division_indices.items():
+            winner_idx = int(division_team_indices[np.argmax(noisy_all_wins[sim, division_team_indices])])
+            playoff_mask[sim, winner_idx] = True
+            division_winners_by_league[division_name[:2]].append(winner_idx)
+
+        for league_name, league_team_indices in league_indices.items():
+            division_winners = set(division_winners_by_league[league_name])
+            wildcard_pool = np.array(
+                [team_idx for team_idx in league_team_indices.tolist() if team_idx not in division_winners],
+                dtype=int,
+            )
+            if wildcard_pool.size == 0:
+                continue
+            wildcard_order = np.argsort(-noisy_all_wins[sim, wildcard_pool])[:3]
+            playoff_mask[sim, wildcard_pool[wildcard_order]] = True
+
+    playoff_probability = {
+        team_name: round(100.0 * float(playoff_mask[:, team_idx].mean()), 1)
+        for team_name, team_idx in team_to_idx.items()
+    }
+    return {
+        team_name: TeamSimulationView(
+            team=team_name,
+            division=TEAM_TO_DIVISION[team_name],
+            actual_points=actual_points_by_team[team_name],
+            simulation_density=density_by_team[team_name],
+            projected_final_wins=projected_final_wins[team_name],
+            projected_division_place=projected_division_place[team_name],
+            playoff_probability=playoff_probability[team_name],
+        )
+        for team_name in snapshot.teams
+    }
 
 
-def build_dashboard_payload(
+def _build_all_dashboard_payloads_uncached(
     season: int,
-    favorite_team: str,
     force_refit: bool = False,
-) -> DashboardResponse:
+) -> dict[str, DashboardResponse]:
     schedule = fetch_schedule(season)
     completed, remaining = split_schedule(schedule)
     snapshot = fit_or_load_snapshot(
@@ -205,90 +317,62 @@ def build_dashboard_payload(
         teams=ALL_TEAMS,
         force_refit=force_refit,
     )
-    actual_points, starting_wins, remaining_dates = _build_actual_points_for_team(
+    actual_points_by_team, starting_wins_by_team, remaining_dates = _build_actual_points_by_team(
         schedule=schedule,
         completed_games=completed,
-        team=favorite_team,
     )
-    simulation_density = _build_simulation_density_for_team(
+    team_simulations = _build_simulation_views(
         snapshot=snapshot,
         remaining_games=remaining,
         actual_record=build_record(completed),
-        team=favorite_team,
-        starting_wins=starting_wins,
+        actual_points_by_team=actual_points_by_team,
+        starting_wins_by_team=starting_wins_by_team,
         season_dates=remaining_dates,
     )
-    density_cells, projected_final_wins, projected_division_place, playoff_probability = simulation_density
+    team_ratings, run_diff, team_to_idx = _build_team_ratings(snapshot)
+    remaining_schedule_views = _build_remaining_schedule_views(remaining, run_diff, team_to_idx)
+    completed_counts = _build_team_game_counts(completed)
+    remaining_counts = _build_team_game_counts(remaining)
+    generated_at = date.today().isoformat()
 
-    def _team_game(g: dict) -> bool:
-        return favorite_team in {g["home_name"], g["away_name"]}
+    payloads: dict[str, DashboardResponse] = {}
+    for team_name in snapshot.teams:
+        payloads[team_name] = DashboardResponse(
+            season=season,
+            favorite_team=team_name,
+            team_simulation=team_simulations[team_name],
+            team_ratings=team_ratings,
+            remaining_schedule=remaining_schedule_views[team_name],
+            meta=DashboardMeta(
+                generated_at=generated_at,
+                games_completed=completed_counts[team_name],
+                games_remaining=remaining_counts[team_name],
+                model_source=snapshot.source,
+                simulation_count=FORWARD_SIMULATIONS,
+            ),
+        )
+    return payloads
 
-    team_completed = sum(1 for g in completed if _team_game(g))
-    team_remaining = sum(1 for g in remaining if _team_game(g))
 
-    mu_median = float(np.median(snapshot.mu_array()))
-    offense_medians = np.median(snapshot.offense_array(), axis=0)
-    defense_medians = np.median(snapshot.defense_array(), axis=0)
-    offense_runs = np.exp(mu_median + offense_medians)
-    defense_runs = np.exp(mu_median - defense_medians)
-
-    offense_ratings = sorted(
-        [TeamRating(team=name, value=round(float(offense_runs[i]), 2))
-         for i, name in enumerate(snapshot.teams)],
-        key=lambda r: r.value,
-        reverse=True,
-    )
-    defense_ratings = sorted(
-        [TeamRating(team=name, value=round(float(defense_runs[i]), 2))
-         for i, name in enumerate(snapshot.teams)],
-        key=lambda r: r.value,
-    )
-
-    team_to_idx = {name: idx for idx, name in enumerate(snapshot.teams)}
-    run_diff = offense_runs - defense_runs
-    rd_min = float(run_diff.min())
-    rd_max = float(run_diff.max())
-    rd_range = rd_max - rd_min if rd_max > rd_min else 1.0
-
-    schedule_games: list[ScheduleGame] = []
-    for g in remaining:
-        if favorite_team not in {g["home_name"], g["away_name"]}:
-            continue
-        is_home = g["home_name"] == favorite_team
-        opponent = g["away_name"] if is_home else g["home_name"]
-        if opponent not in team_to_idx:
-            continue
-        opp_idx = team_to_idx[opponent]
-        strength = round((float(run_diff[opp_idx]) - rd_min) / rd_range, 3)
-        schedule_games.append(ScheduleGame(
-            date=g["game_date"][:10],
-            opponent=opponent,
-            is_home=is_home,
-            opponent_strength=strength,
-        ))
-
-    return DashboardResponse(
+@lru_cache(maxsize=4)
+def _build_all_dashboard_payloads_cached(
+    season: int,
+) -> dict[str, DashboardResponse]:
+    return _build_all_dashboard_payloads_uncached(
         season=season,
-        favorite_team=favorite_team,
-        team_simulation=TeamSimulationView(
-            team=favorite_team,
-            division=TEAM_TO_DIVISION[favorite_team],
-            actual_points=actual_points,
-            simulation_density=density_cells,
-            projected_final_wins=projected_final_wins,
-            projected_division_place=projected_division_place,
-            playoff_probability=playoff_probability,
-        ),
-        team_ratings=TeamRatings(
-            offense=offense_ratings,
-            defense=defense_ratings,
-        ),
-        remaining_schedule=schedule_games,
-        meta=DashboardMeta(
-            generated_at=date.today().isoformat(),
-            games_completed=team_completed,
-            games_remaining=team_remaining,
-            model_source=snapshot.source,
-            simulation_count=FORWARD_SIMULATIONS,
-        ),
+        force_refit=False,
     )
+
+
+def build_dashboard_payload(
+    season: int,
+    favorite_team: str,
+    force_refit: bool = False,
+) -> DashboardResponse:
+    if force_refit:
+        _build_all_dashboard_payloads_cached.cache_clear()
+        payloads = _build_all_dashboard_payloads_uncached(season=season, force_refit=True)
+    else:
+        payloads = _build_all_dashboard_payloads_cached(season=season)
+
+    return _copy_model(payloads[favorite_team])

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 DEFAULT_SEASON = 2026
@@ -9,7 +10,7 @@ POSTERIOR_RETENTION = 2 / 3
 POSTERIOR_DRAWS = 1000
 POSTERIOR_TUNE = 1000
 POSTERIOR_CHAINS = 4
-FORWARD_SIMULATIONS = 10_000
+FORWARD_SIMULATIONS = int(os.getenv("FORWARD_SIMULATIONS", "2500"))
 POSTERIOR_CACHE_DIR = Path(".cache/posteriors")
 FRONTEND_DIST_DIR = Path("frontend/dist")
 LEAGUE_BASELINE_RUNS = 4.5

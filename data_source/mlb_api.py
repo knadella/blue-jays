@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from functools import lru_cache
 
 import statsapi
 
@@ -17,6 +18,7 @@ def _is_known_team(name: str) -> bool:
     return _normalize_team_name(name) in TEAM_TO_DIVISION
 
 
+@lru_cache(maxsize=4)
 def fetch_schedule(season: int) -> list[dict]:
     """Return every regular-season game for *season* as a list of dicts.
 
