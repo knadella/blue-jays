@@ -1,3 +1,5 @@
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:8000";
+
 export interface WinPoint {
   date: string;
   wins: number;
@@ -61,7 +63,7 @@ export interface DashboardResponse {
 }
 
 export async function fetchTeams(): Promise<string[]> {
-  const response = await fetch("http://localhost:8000/api/teams");
+  const response = await fetch(`${API_BASE}/api/teams`);
   if (!response.ok) {
     throw new Error("Failed to fetch teams.");
   }
@@ -74,7 +76,7 @@ export async function fetchDashboard(
   signal?: AbortSignal,
 ): Promise<DashboardResponse> {
   const params = new URLSearchParams({ team, season: String(season) });
-  const response = await fetch(`http://localhost:8000/api/dashboard?${params.toString()}`, { signal });
+  const response = await fetch(`${API_BASE}/api/dashboard?${params.toString()}`, { signal });
   if (!response.ok) {
     throw new Error("Failed to fetch dashboard data.");
   }

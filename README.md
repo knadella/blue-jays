@@ -175,12 +175,51 @@ The daily job clears in-memory caches so the next dashboard request sees
 updated finals while keeping the existing posterior. The weekly refit writes
 a new snapshot under `.cache/posteriors/`.
 
+## Deploy backend on Fly.io
+
+The repo includes a **`Dockerfile`** and **`fly.toml`**: Python 3.11, **2GB RAM**, **2 shared CPUs**, always-on machine, **3GB persistent volume** at `/data` for posteriors and pitcher stats (`POSTERIOR_CACHE_DIR=/data/posteriors`), and a **900s** proxy idle timeout so long MCMC refits can finish.
+
+1. Install the CLI: [Install flyctl](https://fly.io/docs/hands-on/install-flyctl/) (e.g. `brew install flyctl`).
+2. Log in: `fly auth login`
+3. Open **`fly.toml`** and set **`app`** to a **globally unique** name (or run `fly apps create <name>` and match it here).
+4. Deploy (creates the app and, on first deploy, the volume from `initial_size` in `[mounts]`):
+
+   ```bash
+   fly deploy
+   ```
+
+5. Set runtime secrets (same `ADMIN_API_KEY` you use for GitHub Actions, plus your real frontend origin):
+
+   ```bash
+   fly secrets set ADMIN_API_KEY="your-key" CORS_ORIGINS="https://your-frontend.example.com"
+   ```
+
+   Optional: `MLB_SEASON=2026`
+
+6. Your API base URL is **`https://<app>.fly.dev`**. For production builds, set the frontend API host (no trailing slash):
+
+   ```bash
+   cd frontend && VITE_API_URL=https://<app>.fly.dev npm run build
+   ```
+
+   Then wire GitHub Actions:
+
+   ```bash
+   ./scripts/set_github_actions_secrets.sh "https://<app>.fly.dev" "$ADMIN_API_KEY"
+   ```
+
+**Notes**
+
+- If `fly launch` regenerated `fly.toml`, compare it to this repo’s version (mounts, `idle_timeout`, VM size).
+- To use another region, change **`primary_region`** in `fly.toml` and ensure the volume exists in that region (`fly volumes list`).
+
 ## Current status
 
 - backend API, PyMC model, pitcher and game-level features
 - posterior snapshot persistence and evaluation pipeline
 - React + D3 dashboard
 - admin endpoints, GitHub Actions schedules, optional `ADMIN_API_KEY`
+- Fly.io `Dockerfile` + `fly.toml` for production API hosting
 
 ## Legacy: Statcast analysis
 

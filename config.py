@@ -32,7 +32,13 @@ POSTERIOR_DRAWS = 750
 POSTERIOR_TUNE = 750
 POSTERIOR_CHAINS = 2
 FORWARD_SIMULATIONS = int(os.getenv("FORWARD_SIMULATIONS", "2500"))
-POSTERIOR_CACHE_DIR = Path(".cache/posteriors")
+# Persistent disk on Fly.io: set POSTERIOR_CACHE_DIR=/data/posteriors and mount a volume on /data
+_POSTERIOR_CACHE_ENV = os.getenv("POSTERIOR_CACHE_DIR", "").strip()
+POSTERIOR_CACHE_DIR = (
+    Path(_POSTERIOR_CACHE_ENV).expanduser()
+    if _POSTERIOR_CACHE_ENV
+    else Path(".cache/posteriors")
+)
 FRONTEND_DIST_DIR = Path("frontend/dist")
 LEAGUE_BASELINE_RUNS = 4.5
 DEFAULT_HFA_LOG_RUNS = 0.05
