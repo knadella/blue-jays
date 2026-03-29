@@ -122,8 +122,8 @@ export function CumulativeWinsChart({
     const yMax = d3.max(allWins) ?? 0;
 
     const width = 1120;
-    const height = 620;
-    const margin = { top: 24, right: 108, bottom: 36, left: 56 };
+    const height = 480;
+    const margin = { top: 24, right: 80, bottom: 36, left: 48 };
     const monthTicks = d3.timeMonth.range(new Date(`${season}-03-01`), new Date(`${season}-10-01`));
     const monthFormatter = d3.timeFormat("%b");
 

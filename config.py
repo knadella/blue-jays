@@ -83,6 +83,21 @@ def _parse_cors_origins() -> list[str]:
 # Comma-separated origins for CORS (production frontend URL(s)).
 CORS_ORIGINS = _parse_cors_origins()
 
+# GitHub Pages sends Origin https://<user>.github.io (no /repo path). Allowing this regex
+# avoids a silent production failure when Fly has data but CORS_ORIGINS was not set.
+# Set ENABLE_GITHUB_PAGES_CORS=0 to disable. Custom GitHub Pages domains still need CORS_ORIGINS.
+_ENABLE_GH_PAGES = os.getenv("ENABLE_GITHUB_PAGES_CORS", "1").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+    "",
+)
+GITHUB_PAGES_CORS_ORIGIN_REGEX = (
+    r"^https://[a-zA-Z0-9-]+\.github\.io$"
+    if _ENABLE_GH_PAGES
+    else None
+)
+
 # MCMC length for the main season fit (override on Fly for faster refits).
 POSTERIOR_DRAWS = _env_int("POSTERIOR_DRAWS", 750)
 POSTERIOR_TUNE = _env_int("POSTERIOR_TUNE", 750)

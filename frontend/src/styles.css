@@ -231,6 +231,7 @@ body {
   min-width: 0;
 }
 
+/* ---- Responsive: small desktop ---- */
 @media (max-width: 1100px) {
   .masthead {
     flex-direction: column;
@@ -238,18 +239,174 @@ body {
   }
 }
 
+/* ---- Responsive: tablet ---- */
 @media (max-width: 860px) {
+  .app-shell {
+    padding: 24px 16px 40px;
+  }
+
+  .masthead h1 {
+    font-size: 32px;
+  }
+
+  .team-picker {
+    gap: 8px;
+  }
+
+  .pill {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .pill-team {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
   .rating-charts {
     flex-direction: column;
   }
+
+  .section-card {
+    padding: 14px 16px;
+  }
+
+  .chart-card {
+    padding: 14px 16px 20px;
+  }
+
+  .section-header h2,
+  .section-card h2 {
+    font-size: 20px;
+  }
+
+  .section-header span {
+    font-size: 12px;
+  }
 }
 
+/* ---- Responsive: large phone ---- */
 @media (max-width: 600px) {
+  .app-shell {
+    padding: 16px 12px 32px;
+  }
+
+  .masthead {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .masthead h1 {
+    font-size: 26px;
+  }
+
+  .eyebrow {
+    font-size: 10px;
+  }
+
+  .team-picker {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .pill-separator {
+    display: none;
+  }
+
+  .pill-group {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .pill {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .pill-team {
+    padding: 4px 9px;
+    font-size: 11px;
+  }
+
   .kpi-row {
     flex-wrap: wrap;
+    gap: 8px;
   }
 
   .kpi-tile {
-    min-width: calc(50% - 8px);
+    min-width: calc(50% - 4px);
+    padding: 12px 8px 10px;
+  }
+
+  .kpi-value {
+    font-size: 22px;
+  }
+
+  .kpi-label {
+    font-size: 9px;
+  }
+
+  .section-card {
+    border-radius: 12px;
+    padding: 12px 12px;
+  }
+
+  .chart-card {
+    padding: 12px 10px 16px;
+  }
+
+  .section-header {
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+  }
+
+  .section-header h2,
+  .section-card h2 {
+    font-size: 18px;
+  }
+
+  .section-header span {
+    font-size: 11px;
+  }
+
+  .ratings-section {
+    margin-top: 12px;
+  }
+
+  .loading-hint {
+    font-size: 12px;
+  }
+}
+
+/* ---- Responsive: small phone ---- */
+@media (max-width: 400px) {
+  .app-shell {
+    padding: 12px 8px 24px;
+  }
+
+  .masthead h1 {
+    font-size: 22px;
+  }
+
+  .kpi-tile {
+    min-width: 100%;
+  }
+
+  .kpi-value {
+    font-size: 20px;
+  }
+
+  .section-header h2,
+  .section-card h2 {
+    font-size: 16px;
+  }
+
+  .chart-card {
+    padding: 10px 8px 14px;
   }
 }

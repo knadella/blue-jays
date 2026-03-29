@@ -15,6 +15,7 @@ from config import (
     ALL_TEAMS,
     CORS_ORIGINS,
     DEFAULT_SEASON,
+    GITHUB_PAGES_CORS_ORIGIN_REGEX,
     SKIP_DASHBOARD_WARMUP,
 )
 
@@ -41,6 +42,7 @@ app = FastAPI(title="MLB Forecast API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
+    allow_origin_regex=GITHUB_PAGES_CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
