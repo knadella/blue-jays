@@ -173,14 +173,27 @@ body {
   font-size: 13px;
 }
 
-.kpi-row {
+.hero-row {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   margin-bottom: 16px;
+  align-items: stretch;
+}
+
+.kpi-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 170px;
+  flex-shrink: 0;
+}
+
+.hero-chart {
+  flex: 1;
+  min-width: 0;
 }
 
 .kpi-tile {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -263,6 +276,20 @@ body {
     font-size: 11px;
   }
 
+  .hero-row {
+    flex-direction: column;
+  }
+
+  .kpi-column {
+    flex-direction: row;
+    width: auto;
+    gap: 10px;
+  }
+
+  .kpi-tile {
+    flex: 1;
+  }
+
   .rating-charts {
     flex-direction: column;
   }
@@ -332,13 +359,14 @@ body {
     font-size: 11px;
   }
 
-  .kpi-row {
-    flex-wrap: wrap;
+  .kpi-column {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: auto;
     gap: 8px;
   }
 
   .kpi-tile {
-    min-width: calc(50% - 4px);
     padding: 12px 8px 10px;
   }
 
@@ -391,10 +419,6 @@ body {
 
   .masthead h1 {
     font-size: 22px;
-  }
-
-  .kpi-tile {
-    min-width: 100%;
   }
 
   .kpi-value {

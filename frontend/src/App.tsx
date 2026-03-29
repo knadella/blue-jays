@@ -238,43 +238,48 @@ export default function App() {
 
       {dashboard && (
         <>
-          <div className="kpi-row">
-            <div className="kpi-tile">
-              <span className="kpi-value">
-                {dashboard.team_simulation.actual_wins}–{dashboard.team_simulation.actual_losses}
-              </span>
-              <span className="kpi-label">Record</span>
+          <div className="hero-row">
+            <div className="kpi-column">
+              <div className="kpi-tile">
+                <span className="kpi-value">
+                  {dashboard.team_simulation.actual_wins}–{dashboard.team_simulation.actual_losses}
+                </span>
+                <span className="kpi-label">Record</span>
+              </div>
+              <div className="kpi-tile">
+                <span className="kpi-value">
+                  {ordinal(dashboard.team_simulation.actual_division_place)}
+                </span>
+                <span className="kpi-label">{dashboard.team_simulation.division}</span>
+              </div>
+              <div className="kpi-tile">
+                <span className="kpi-value">{dashboard.team_simulation.streak || "-"}</span>
+                <span className="kpi-label">Streak</span>
+              </div>
+              <div className="kpi-tile">
+                <span className="kpi-value">
+                  {dashboard.team_simulation.run_differential > 0 ? "+" : ""}
+                  {dashboard.team_simulation.run_differential}
+                </span>
+                <span className="kpi-label">Run Diff</span>
+              </div>
             </div>
-            <div className="kpi-tile">
-              <span className="kpi-value">
-                {ordinal(dashboard.team_simulation.actual_division_place)}
-              </span>
-              <span className="kpi-label">{dashboard.team_simulation.division}</span>
-            </div>
-            <div className="kpi-tile">
-              <span className="kpi-value">{dashboard.meta.games_completed}</span>
-              <span className="kpi-label">Games Played</span>
-            </div>
-            <div className="kpi-tile">
-              <span className="kpi-value">{dashboard.meta.games_remaining}</span>
-              <span className="kpi-label">Remaining</span>
-            </div>
-          </div>
 
-          <section className="section-card chart-card">
-            <div className="section-header">
-              <h2>Win Projections</h2>
-            </div>
-            <CumulativeWinsChart
-              actualPoints={dashboard.team_simulation.actual_points}
-              simulationDensity={dashboard.team_simulation.simulation_density}
-              team={displayedTeam}
-              season={dashboard.season}
-              projectedFinalWins={dashboard.team_simulation.projected_final_wins}
-              projectedDivisionPlace={dashboard.team_simulation.projected_division_place}
-              playoffProbability={dashboard.team_simulation.playoff_probability}
-            />
-          </section>
+            <section className="section-card chart-card hero-chart">
+              <div className="section-header">
+                <h2>Win Projections</h2>
+              </div>
+              <CumulativeWinsChart
+                actualPoints={dashboard.team_simulation.actual_points}
+                simulationDensity={dashboard.team_simulation.simulation_density}
+                team={displayedTeam}
+                season={dashboard.season}
+                projectedFinalWins={dashboard.team_simulation.projected_final_wins}
+                projectedDivisionPlace={dashboard.team_simulation.projected_division_place}
+                playoffProbability={dashboard.team_simulation.playoff_probability}
+              />
+            </section>
+          </div>
 
           <section className="section-card chart-card ratings-section">
             <div className="section-header">

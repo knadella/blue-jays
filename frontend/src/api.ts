@@ -17,6 +17,8 @@ export interface TeamSimulationView {
   actual_wins: number;
   actual_losses: number;
   actual_division_place: number;
+  streak: string;
+  run_differential: number;
   actual_points: WinPoint[];
   simulation_density: SimulationDensityCell[];
   projected_final_wins: number;
@@ -70,15 +72,33 @@ export async function fetchTeams(): Promise<string[]> {
   return response.json();
 }
 
+async function fetchSampleDashboard(): Promise<DashboardResponse> {
+  const base = import.meta.env.BASE_URL;
+  const response = await fetch(`${base}sample-dashboard.json`);
+  if (!response.ok) {
+    throw new Error("Sample data not found.");
+  }
+  return response.json();
+}
+
 export async function fetchDashboard(
   team: string,
   season = 2026,
   signal?: AbortSignal,
 ): Promise<DashboardResponse> {
   const params = new URLSearchParams({ team, season: String(season) });
-  const response = await fetch(`${API_BASE}/api/dashboard?${params.toString()}`, { signal });
-  if (!response.ok) {
-    throw new Error("Failed to fetch dashboard data.");
+  try {
+    const response = await fetch(`${API_BASE}/api/dashboard?${params.toString()}`, { signal });
+    if (!response.ok) {
+      throw new Error("Failed to fetch dashboard data.");
+    }
+    return response.json();
+  } catch (err) {
+    // In local dev, fall back to sample data if the backend is unreachable
+    if (import.meta.env.DEV) {
+      console.warn("Backend unreachable, using sample dashboard data for preview.");
+      return fetchSampleDashboard();
+    }
+    throw err;
   }
-  return response.json();
 }

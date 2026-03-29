@@ -362,6 +362,55 @@ def _build_simulation_views(
     }
 
 
+def _build_streaks(completed_games: list[dict]) -> dict[str, str]:
+    """Compute current streak string (e.g. 'W3', 'L1') for each team."""
+    # Build chronological list of (winner, loser) per game
+    team_results: dict[str, list[str]] = {team: [] for team in ALL_TEAMS}
+    sorted_games = sorted(completed_games, key=lambda g: g.get("game_date", ""))
+    for g in sorted_games:
+        home, away = g["home_name"], g["away_name"]
+        hs, as_ = g.get("home_score"), g.get("away_score")
+        if hs is None or as_ is None:
+            continue
+        if hs > as_:
+            team_results[home].append("W")
+            team_results[away].append("L")
+        elif as_ > hs:
+            team_results[away].append("W")
+            team_results[home].append("L")
+
+    streaks: dict[str, str] = {}
+    for team, results in team_results.items():
+        if not results:
+            streaks[team] = "-"
+            continue
+        last = results[-1]
+        count = 0
+        for r in reversed(results):
+            if r == last:
+                count += 1
+            else:
+                break
+        streaks[team] = f"{last}{count}"
+    return streaks
+
+
+def _build_run_differentials(completed_games: list[dict]) -> dict[str, int]:
+    """Compute total run differential (runs scored - runs allowed) per team."""
+    runs_for: dict[str, int] = {team: 0 for team in ALL_TEAMS}
+    runs_against: dict[str, int] = {team: 0 for team in ALL_TEAMS}
+    for g in completed_games:
+        home, away = g["home_name"], g["away_name"]
+        hs, as_ = g.get("home_score"), g.get("away_score")
+        if hs is None or as_ is None:
+            continue
+        runs_for[home] += hs
+        runs_against[home] += as_
+        runs_for[away] += as_
+        runs_against[away] += hs
+    return {team: runs_for[team] - runs_against[team] for team in ALL_TEAMS}
+
+
 def _build_all_dashboard_payloads_uncached(
     season: int,
     force_refit: bool = False,
@@ -392,6 +441,11 @@ def _build_all_dashboard_payloads_uncached(
     remaining_schedule_views = _build_remaining_schedule_views(remaining, run_diff, team_to_idx)
     completed_counts = _build_team_game_counts(completed)
     remaining_counts = _build_team_game_counts(remaining)
+    streaks = _build_streaks(completed)
+    run_differentials = _build_run_differentials(completed)
+    for team_name, sim in team_simulations.items():
+        sim.streak = streaks.get(team_name, "-")
+        sim.run_differential = run_differentials.get(team_name, 0)
     generated_at = date.today().isoformat()
 
     division_standings_by_div: dict[str, list[DivisionStanding]] = {}
