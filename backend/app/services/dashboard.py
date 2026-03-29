@@ -10,6 +10,7 @@ import numpy as np
 
 from config import (
     ALL_TEAMS,
+    DEFAULT_SEASON,
     DIVISIONS,
     FORWARD_SIMULATIONS,
     INSTANT_DASHBOARD_PRIOR,
