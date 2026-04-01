@@ -8,6 +8,8 @@ interface Props {
   schedule: ScheduleGame[];
   team: string;
   season: number;
+  scheduleStrengthPlayed: number | null;
+  scheduleStrengthRemaining: number | null;
 }
 
 function abbrev(team: string): string {
@@ -60,20 +62,83 @@ function groupIntoSeries(schedule: ScheduleGame[]): Series[] {
   return series;
 }
 
-export function ScheduleHeatmap({ schedule, team, season }: Props) {
+function appendSosMetricCard(
+  root: d3.Selection<SVGSVGElement, unknown, null, undefined>,
+  x: number,
+  label: string,
+  value: number | null,
+  accent: string,
+) {
+  const w = 252;
+  const h = 34;
+  const g = root.append("g").attr("transform", `translate(${x}, 2)`);
+  g.append("rect")
+    .attr("width", w)
+    .attr("height", h)
+    .attr("rx", 8)
+    .attr("fill", "#fffaf4")
+    .attr("stroke", "#dfd1c4");
+
+  const text = g
+    .append("text")
+    .attr("x", 12)
+    .attr("y", 22)
+    .style("font-size", "13px")
+    .style("font-family", "'Inter', -apple-system, system-ui, sans-serif");
+
+  text.append("tspan").attr("fill", "#6b5b4d").style("font-weight", "600").text(`${label} `);
+  text
+    .append("tspan")
+    .attr("fill", accent)
+    .style("font-weight", "700")
+    .text(value != null ? value.toFixed(1) : "—");
+  text.append("tspan").attr("fill", "#6b5b4d").style("font-weight", "600").text(" / 10");
+}
+
+export function ScheduleHeatmap({
+  schedule,
+  team,
+  season,
+  scheduleStrengthPlayed,
+  scheduleStrengthRemaining,
+}: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
-    if (!svgRef.current || schedule.length === 0) return;
+    if (!svgRef.current) return;
+
+    const accent = getTeamColor(team);
+    const width = 1120;
+    const chartOffsetY = 44;
+    const chartHeight = 140;
+    const height = chartHeight + chartOffsetY;
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove();
+    svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+    appendSosMetricCard(svg, 20, "SOS played", scheduleStrengthPlayed, accent);
+    appendSosMetricCard(svg, 20 + 252 + 16, "SOS remaining", scheduleStrengthRemaining, accent);
+
+    const chart = svg.append("g").attr("transform", `translate(0,${chartOffsetY})`);
+
+    if (schedule.length === 0) {
+      chart
+        .append("text")
+        .attr("x", width / 2)
+        .attr("y", chartHeight / 2)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#9a8b7c")
+        .style("font-size", "14px")
+        .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+        .text("No games remaining — see SOS played above for the season so far.");
+      return;
+    }
 
     const seriesList = groupIntoSeries(schedule);
-    const accent = getTeamColor(team);
 
-    const width = 1120;
-    const height = 140;
     const margin = { top: 8, right: 20, bottom: 28, left: 20 };
-    const plotW = width - margin.left - margin.right;
-    const rowH = height - margin.top - margin.bottom;
+    const rowH = chartHeight - margin.top - margin.bottom;
     const blockH = rowH - 16;
 
     const firstDate = new Date(`${season}-03-20`);
@@ -84,13 +149,7 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
       .domain([firstDate, lastDate])
       .range([margin.left, width - margin.right]);
 
-    const color = d3
-      .scaleSequential(d3.interpolateRdYlGn)
-      .domain([1, 0]);
-
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
-    svg.attr("viewBox", `0 0 ${width} ${height}`);
+    const color = d3.scaleSequential(d3.interpolateRdYlGn).domain([1, 0]);
 
     const monthTicks = d3.timeMonth.range(
       new Date(`${season}-04-01`),
@@ -98,9 +157,9 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
     );
     const monthFmt = d3.timeFormat("%b");
 
-    svg
+    chart
       .append("g")
-      .attr("transform", `translate(0,${height - margin.bottom + 4})`)
+      .attr("transform", `translate(0,${chartHeight - margin.bottom + 4})`)
       .call(
         d3
           .axisBottom<Date>(x)
@@ -117,12 +176,12 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
       );
 
     monthTicks.forEach((tick) => {
-      svg
+      chart
         .append("line")
         .attr("x1", x(tick))
         .attr("x2", x(tick))
         .attr("y1", margin.top)
-        .attr("y2", height - margin.bottom)
+        .attr("y2", chartHeight - margin.bottom)
         .attr("stroke", "#e0d5c9")
         .attr("stroke-opacity", 0.5)
         .attr("stroke-dasharray", "3,3");
@@ -139,7 +198,7 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
       const bw = Math.max(x(endDate) - bx - 1.5, 4);
       const fill = color(s.avgStrength);
 
-      svg
+      chart
         .append("rect")
         .attr("x", bx)
         .attr("y", blockY)
@@ -151,7 +210,7 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
         .attr("stroke-width", 1);
 
       if (bw > 22) {
-        svg
+        chart
           .append("text")
           .attr("x", bx + bw / 2)
           .attr("y", blockY + blockH / 2)
@@ -165,7 +224,7 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
       }
 
       if (bw > 36) {
-        svg
+        chart
           .append("text")
           .attr("x", bx + bw / 2)
           .attr("y", blockY + blockH - 5)
@@ -183,14 +242,14 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
     const legendX = width - margin.right - legendW;
     const legendY = margin.top - 2;
 
-    const defs = svg.append("defs");
+    const defs = chart.append("defs");
     const gradId = "sos-gradient";
     const grad = defs.append("linearGradient").attr("id", gradId);
     grad.append("stop").attr("offset", "0%").attr("stop-color", color(0));
     grad.append("stop").attr("offset", "50%").attr("stop-color", color(0.5));
     grad.append("stop").attr("offset", "100%").attr("stop-color", color(1));
 
-    svg
+    chart
       .append("rect")
       .attr("x", legendX)
       .attr("y", legendY)
@@ -199,7 +258,7 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
       .attr("rx", 4)
       .attr("fill", `url(#${gradId})`);
 
-    svg
+    chart
       .append("text")
       .attr("x", legendX - 4)
       .attr("y", legendY + legendH / 2)
@@ -211,7 +270,7 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
       .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
       .text("EASY");
 
-    svg
+    chart
       .append("text")
       .attr("x", legendX + legendW + 4)
       .attr("y", legendY + legendH / 2)
@@ -221,14 +280,14 @@ export function ScheduleHeatmap({ schedule, team, season }: Props) {
       .style("font-weight", "600")
       .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
       .text("TOUGH");
-  }, [schedule, team, season]);
+  }, [schedule, team, season, scheduleStrengthPlayed, scheduleStrengthRemaining]);
 
   return (
     <svg
       ref={svgRef}
-      className="chart-svg"
+      className="chart-svg schedule-heatmap-svg"
       role="img"
-      aria-label="Remaining schedule strength heatmap"
+      aria-label="Strength of schedule: played and remaining scores and remaining schedule heatmap"
     />
   );
 }

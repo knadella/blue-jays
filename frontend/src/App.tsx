@@ -263,22 +263,6 @@ export default function App() {
                 </span>
                 <span className="kpi-label">Run Diff</span>
               </div>
-              <div className="kpi-tile">
-                <span className="kpi-value">
-                  {dashboard.team_simulation.schedule_strength_played != null
-                    ? dashboard.team_simulation.schedule_strength_played.toFixed(1)
-                    : "—"}
-                </span>
-                <span className="kpi-label">SOS played (0–10)</span>
-              </div>
-              <div className="kpi-tile">
-                <span className="kpi-value">
-                  {dashboard.team_simulation.schedule_strength_remaining != null
-                    ? dashboard.team_simulation.schedule_strength_remaining.toFixed(1)
-                    : "—"}
-                </span>
-                <span className="kpi-label">SOS remaining (0–10)</span>
-              </div>
             </div>
 
             <section className="section-card chart-card hero-chart">
@@ -313,15 +297,16 @@ export default function App() {
             <div className="section-header">
               <h2>Strength of Schedule</h2>
               <span>
-                Remaining opponents by difficulty. KPI scores average opponent team strength (from
-                the model run differential) on a 0–10 league scale—higher means tougher
-                opponents.
+                Cards show average opponent strength (model run differential) on a 0–10 league
+                scale. The timeline colors remaining opponents: green easier, red tougher.
               </span>
             </div>
             <ScheduleHeatmap
               schedule={dashboard.remaining_schedule}
               team={displayedTeam}
               season={dashboard.season}
+              scheduleStrengthPlayed={dashboard.team_simulation.schedule_strength_played}
+              scheduleStrengthRemaining={dashboard.team_simulation.schedule_strength_remaining}
             />
           </section>
         </>
