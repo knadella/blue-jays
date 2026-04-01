@@ -165,6 +165,46 @@ def _build_remaining_schedule_views(
     return schedules_by_team
 
 
+def _opponent_strength_values_for_team(
+    games: list[dict],
+    team: str,
+    run_diff: np.ndarray,
+    team_to_idx: dict[str, int],
+) -> list[float]:
+    """Per-game opponent difficulty in [0, 1], same scaling as ScheduleGame.opponent_strength."""
+    rd_min = float(run_diff.min())
+    rd_max = float(run_diff.max())
+    rd_range = rd_max - rd_min if rd_max > rd_min else 1.0
+    values: list[float] = []
+    for game in games:
+        home_team = game["home_name"]
+        away_team = game["away_name"]
+        if home_team == team:
+            opponent = away_team
+        elif away_team == team:
+            opponent = home_team
+        else:
+            continue
+        if opponent not in team_to_idx:
+            continue
+        opp_idx = team_to_idx[opponent]
+        values.append((float(run_diff[opp_idx]) - rd_min) / rd_range)
+    return values
+
+
+def schedule_strength_10(
+    games: list[dict],
+    team: str,
+    run_diff: np.ndarray,
+    team_to_idx: dict[str, int],
+) -> float | None:
+    """Mean opponent difficulty on a 0–10 scale (higher = harder). None if no games."""
+    strengths = _opponent_strength_values_for_team(games, team, run_diff, team_to_idx)
+    if not strengths:
+        return None
+    return round(10.0 * float(np.mean(strengths)), 2)
+
+
 def _build_team_game_counts(games: list[dict]) -> dict[str, int]:
     counts = {team: 0 for team in ALL_TEAMS}
     for game in games:
@@ -447,6 +487,18 @@ def _build_all_dashboard_payloads_uncached(
     for team_name, sim in team_simulations.items():
         sim.streak = streaks.get(team_name, "-")
         sim.run_differential = run_differentials.get(team_name, 0)
+    for team_name in snapshot.teams:
+        sim = team_simulations[team_name]
+        team_simulations[team_name] = sim.model_copy(
+            update={
+                "schedule_strength_played": schedule_strength_10(
+                    completed, team_name, run_diff, team_to_idx
+                ),
+                "schedule_strength_remaining": schedule_strength_10(
+                    remaining, team_name, run_diff, team_to_idx
+                ),
+            },
+        )
     generated_at = date.today().isoformat()
 
     division_standings_by_div: dict[str, list[DivisionStanding]] = {}

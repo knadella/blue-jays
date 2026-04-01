@@ -16,6 +16,19 @@ from data_source.game_features import (
 from data_source.mlb_api import completed_game_rows
 
 
+def test_schedule_strength_10_scales_opponent_run_diff():
+    from backend.app.services.dashboard import schedule_strength_10
+
+    # Two opponents: weak (run_diff 0) and strong (run_diff 10) → mean normalized strength 0.5 → 5.0
+    run_diff = np.array([0.0, 10.0, 5.0], dtype=float)
+    team_to_idx = {"Weak Team": 0, "Strong Team": 1, "Focus": 2}
+    games = [
+        {"home_name": "Focus", "away_name": "Weak Team"},
+        {"home_name": "Strong Team", "away_name": "Focus"},
+    ]
+    assert schedule_strength_10(games, "Focus", run_diff, team_to_idx) == 5.0
+
+
 def test_game_features_shapes_and_finite():
     games = [
         {

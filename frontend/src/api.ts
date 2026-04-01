@@ -19,6 +19,10 @@ export interface TeamSimulationView {
   actual_division_place: number;
   streak: string;
   run_differential: number;
+  /** 0–10 mean opponent quality on games already played (higher = harder). */
+  schedule_strength_played: number | null;
+  /** 0–10 mean opponent quality on games left (higher = harder). */
+  schedule_strength_remaining: number | null;
   actual_points: WinPoint[];
   simulation_density: SimulationDensityCell[];
   projected_final_wins: number;

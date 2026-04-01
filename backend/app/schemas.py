@@ -26,6 +26,8 @@ class TeamSimulationView(BaseModel):
     actual_division_place: int = 1
     streak: str = ""
     run_differential: int = 0
+    schedule_strength_played: Optional[float] = None
+    schedule_strength_remaining: Optional[float] = None
     actual_points: list[WinPoint] = Field(default_factory=list)
     simulation_density: list[SimulationDensityCell] = Field(default_factory=list)
     projected_final_wins: int
