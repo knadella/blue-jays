@@ -63,15 +63,14 @@ class TeamRatingVsActual(BaseModel):
 
 
 class MonthlyRunRatePoint(BaseModel):
-    """Per month: projection at month start vs season-to-date actuals through month-end (or today)."""
+    """Per month: team vs league model projections (fit using games before the 1st of that month)."""
 
     month: int
     label: str
     runs_scored_projected: float
     runs_allowed_projected: float
-    runs_scored_actual_szn_to_date: Optional[float] = None
-    runs_allowed_actual_szn_to_date: Optional[float] = None
-    games_played_through: int = 0
+    league_runs_scored_projected: float
+    league_runs_allowed_projected: float
 
 
 class ScheduleGame(BaseModel):
@@ -93,6 +92,8 @@ class DashboardResponse(BaseModel):
     team_ratings: TeamRatings
     team_rating_vs_actual: TeamRatingVsActual
     monthly_run_rates: list[MonthlyRunRatePoint] = Field(default_factory=list)
+    league_runs_scored_per_game_actual: Optional[float] = None
+    league_runs_allowed_per_game_actual: Optional[float] = None
     remaining_schedule: list[ScheduleGame] = Field(default_factory=list)
     division_standings: dict[str, list[DivisionStanding]] = Field(default_factory=dict)
     meta: DashboardMeta
