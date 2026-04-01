@@ -40,6 +40,13 @@ export interface TeamRatings {
   defense: TeamRating[];
 }
 
+export interface TeamRatingVsActual {
+  runs_scored_per_game_projected: number;
+  runs_scored_per_game_actual: number | null;
+  runs_allowed_per_game_projected: number;
+  runs_allowed_per_game_actual: number | null;
+}
+
 export interface ScheduleGame {
   date: string;
   opponent: string;
@@ -57,6 +64,7 @@ export interface DashboardResponse {
   favorite_team: string;
   team_simulation: TeamSimulationView;
   team_ratings: TeamRatings;
+  team_rating_vs_actual: TeamRatingVsActual;
   remaining_schedule: ScheduleGame[];
   division_standings: Record<string, DivisionStanding[]>;
   meta: {

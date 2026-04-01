@@ -1,12 +1,11 @@
 import { useEffect, useRef } from "react";
 import * as d3 from "d3";
 
-import type { TeamRating } from "../api";
-import { getTeamAbbrev, getTeamColor, getTeamLogoPath } from "../teamMetadata";
+import type { TeamRatingVsActual } from "../api";
+import { getTeamAbbrev, getTeamColor } from "../teamMetadata";
 
 interface Props {
-  offense: TeamRating[];
-  defense: TeamRating[];
+  comparison: TeamRatingVsActual;
   team: string;
 }
 
@@ -14,80 +13,41 @@ function abbrev(team: string): string {
   return getTeamAbbrev(team);
 }
 
-function accentFor(team: string): string {
-  return getTeamColor(team);
-}
-
-interface PlacedDot {
-  team: string;
+interface Marker {
   value: number;
-  cx: number;
-  cy: number;
+  label: string;
+  fill: string;
+  r: number;
 }
 
-function resolvePositions(
-  ratings: TeamRating[],
-  x: d3.ScaleLinear<number, number>,
-  centerY: number,
-  rowHeight: number,
-  minXGap: number,
-): PlacedDot[] {
-  const sorted = [...ratings].sort((a, b) => a.value - b.value);
-  const rows: number[] = [];
-
-  const placed = sorted.map((r) => {
-    const cx = x(r.value);
-    let row = 0;
-    while (row < rows.length && cx - rows[row] < minXGap) {
-      row++;
-    }
-    if (row >= rows.length) rows.push(-Infinity);
-    rows[row] = cx;
-    return { team: r.team, value: r.value, cx, row };
-  });
-
-  const totalRows = rows.length;
-  return placed.map((p) => ({
-    team: p.team,
-    value: p.value,
-    cx: p.cx,
-    cy: centerY + (p.row - (totalRows - 1) / 2) * rowHeight,
-  }));
-}
-
-function drawStrip(
+function drawComparisonStrip(
   svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
-  ratings: TeamRating[],
-  selectedTeam: string,
-  title: string,
-  subtitle: string,
+  params: {
+    title: string;
+    projected: number;
+    actual: number | null;
+    team: string;
+    higherIsBetter: boolean;
+  },
 ) {
+  const { title, projected, actual, team, higherIsBetter } = params;
+  const accent = getTeamColor(team);
   const width = 520;
-  const height = 180;
-  const margin = { top: 48, right: 24, bottom: 32, left: 24 };
-  const plotW = width - margin.left - margin.right;
+  const height = 208;
+  const margin = { top: 44, right: 24, bottom: 58, left: 24 };
 
   svg.selectAll("*").remove();
   svg.attr("viewBox", `0 0 ${width} ${height}`);
 
-  const values = ratings.map((r) => r.value);
-  const extent = d3.extent(values) as [number, number];
-  const pad = (extent[1] - extent[0]) * 0.12;
-
-  const x = d3
-    .scaleLinear()
-    .domain([extent[0] - pad, extent[1] + pad])
-    .range([margin.left, width - margin.right]);
-
-  const stripCenterY = (margin.top + height - margin.bottom) / 2 + 4;
-  const dots = resolvePositions(ratings, x, stripCenterY, 14, 12);
-  const avg = d3.mean(values) ?? 0;
-  const accent = accentFor(selectedTeam);
+  const subtitle =
+    actual != null
+      ? `${abbrev(team)}: model projection vs games played to date`
+      : `${abbrev(team)}: no completed games yet — projection only`;
 
   svg
     .append("text")
     .attr("x", margin.left)
-    .attr("y", 20)
+    .attr("y", 18)
     .attr("fill", "#1d1d1d")
     .style("font-size", "14px")
     .style("font-weight", "600")
@@ -97,30 +57,54 @@ function drawStrip(
   svg
     .append("text")
     .attr("x", margin.left)
-    .attr("y", 36)
+    .attr("y", 34)
     .attr("fill", "#9a8b7c")
     .style("font-size", "11px")
     .style("font-weight", "500")
     .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
     .text(subtitle);
 
+  const markers: Marker[] = [
+    { value: projected, label: "Projected", fill: "#9a8b7c", r: 6 },
+  ];
+  if (actual != null) {
+    markers.push({ value: actual, label: "Actual", fill: accent, r: 7 });
+  }
+
+  const values = markers.map((m) => m.value);
+  let lo = Math.min(...values);
+  let hi = Math.max(...values);
+  if (hi - lo < 0.25) {
+    const mid = (lo + hi) / 2;
+    lo = mid - 0.35;
+    hi = mid + 0.35;
+  } else {
+    const pad = (hi - lo) * 0.18;
+    lo -= pad;
+    hi += pad;
+  }
+
+  const x = d3.scaleLinear().domain([lo, hi]).range([margin.left, width - margin.right]);
+
+  const axisY = height - margin.bottom + 8;
+  const centerY = margin.top + (axisY - margin.top) / 2 + 2;
+
   svg
     .append("g")
-    .attr("transform", `translate(0,${height - margin.bottom})`)
+    .attr("transform", `translate(0,${axisY})`)
     .call(
       d3
         .axisBottom(x)
-        .ticks(6)
-        .tickSize(-(height - margin.top - margin.bottom))
+        .ticks(5)
         .tickFormat((d) => d3.format(".1f")(d as number)),
     )
+    .call((g) => g.select(".domain").attr("stroke", "#ddd1c4"))
     .call((g) =>
       g
-        .selectAll("line")
-        .attr("stroke", "#ddd1c4")
-        .attr("stroke-opacity", 0.5),
+        .selectAll(".tick line")
+        .attr("stroke", "#e8dfd6")
+        .attr("stroke-opacity", 0.9),
     )
-    .call((g) => g.select(".domain").remove())
     .call((g) =>
       g
         .selectAll("text")
@@ -128,121 +112,131 @@ function drawStrip(
         .style("font-size", "11px"),
     );
 
-  svg
-    .append("line")
-    .attr("x1", x(avg))
-    .attr("x2", x(avg))
-    .attr("y1", margin.top)
-    .attr("y2", height - margin.bottom)
-    .attr("stroke", "#8a7a6a")
-    .attr("stroke-width", 1.5)
-    .attr("stroke-dasharray", "4,3");
+  const cys = markers.map(() => centerY);
+  if (markers.length === 2) {
+    const cx0 = x(markers[0].value);
+    const cx1 = x(markers[1].value);
+    if (Math.abs(cx0 - cx1) < 18) {
+      cys[0] = centerY - 12;
+      cys[1] = centerY + 12;
+    }
+  }
 
-  svg
-    .append("text")
-    .attr("x", x(avg))
-    .attr("y", margin.top - 4)
-    .attr("text-anchor", "middle")
-    .attr("fill", "#8a7a6a")
-    .style("font-size", "9px")
-    .style("font-weight", "600")
-    .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
-    .text("AVG");
+  const projectedMarker = markers.find((m) => m.label === "Projected")!;
 
-  const others = dots.filter((d) => d.team !== selectedTeam);
-  const selected = dots.find((d) => d.team === selectedTeam);
+  markers.forEach((m, i) => {
+    const cx = x(m.value);
+    const cy = cys[i];
 
-  others.forEach((d) => {
     svg
-      .append("circle")
-      .attr("cx", d.cx)
-      .attr("cy", d.cy)
-      .attr("r", 4)
-      .attr("fill", "#c9b9aa")
-      .attr("opacity", 0.7);
-  });
-
-  if (selected) {
-    const teamLogoPath = getTeamLogoPath(selectedTeam);
+      .append("line")
+      .attr("x1", cx)
+      .attr("x2", cx)
+      .attr("y1", axisY)
+      .attr("y2", cy + m.r)
+      .attr("stroke", m.fill)
+      .attr("stroke-opacity", 0.35)
+      .attr("stroke-width", 1.5)
+      .attr("stroke-dasharray", "3,2");
 
     svg
       .append("circle")
-      .attr("cx", selected.cx)
-      .attr("cy", selected.cy)
-      .attr("r", 7)
-      .attr("fill", accent)
-      .attr("stroke", "#ffffff")
+      .attr("cx", cx)
+      .attr("cy", cy)
+      .attr("r", m.r)
+      .attr("fill", m.fill)
+      .attr("stroke", "#fffaf4")
       .attr("stroke-width", 2);
 
-    if (teamLogoPath) {
-      svg
-        .append("image")
-        .attr("href", teamLogoPath)
-        .attr("x", selected.cx - 10)
-        .attr("y", selected.cy - 30)
-        .attr("width", 20)
-        .attr("height", 20)
-        .attr("preserveAspectRatio", "xMidYMid meet");
-    } else {
-      const labelY = selected.cy - 14;
-      svg
-        .append("text")
-        .attr("x", selected.cx)
-        .attr("y", labelY)
-        .attr("text-anchor", "middle")
-        .attr("fill", accent)
-        .style("font-size", "10px")
-        .style("font-weight", "700")
-        .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
-        .text(abbrev(selectedTeam));
-    }
-
-    const valueY = selected.cy + 18;
     svg
       .append("text")
-      .attr("x", selected.cx)
-      .attr("y", valueY)
+      .attr("x", cx)
+      .attr("y", cy - m.r - 6)
       .attr("text-anchor", "middle")
-      .attr("fill", "#1d1d1d")
-      .style("font-size", "11px")
+      .attr("fill", m.fill)
+      .style("font-size", "10px")
       .style("font-weight", "700")
       .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
-      .text(selected.value.toFixed(1));
+      .text(m.label);
+
+    svg
+      .append("text")
+      .attr("x", cx)
+      .attr("y", cy + m.r + 14)
+      .attr("text-anchor", "middle")
+      .attr("fill", "#1d1d1d")
+      .style("font-size", "12px")
+      .style("font-weight", "700")
+      .style("font-family", "Georgia, 'Times New Roman', serif")
+      .text(m.value.toFixed(2));
+
+    if (m.label === "Actual" && markers.length === 2) {
+      const delta = m.value - projectedMarker.value;
+      const sign = delta > 0 ? "+" : "";
+      const good = higherIsBetter ? delta >= 0 : delta <= 0;
+      svg
+        .append("text")
+        .attr("x", cx)
+        .attr("y", cy + m.r + 30)
+        .attr("text-anchor", "middle")
+        .attr("fill", good ? "#2d6a4f" : "#9b2226")
+        .style("font-size", "10px")
+        .style("font-weight", "600")
+        .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+        .text(`${sign}${delta.toFixed(2)} vs proj.`);
+    }
+  });
+
+  const legY = height - 10;
+  svg.append("circle").attr("cx", margin.left + 6).attr("cy", legY - 3).attr("r", 4).attr("fill", "#9a8b7c");
+  svg
+    .append("text")
+    .attr("x", margin.left + 16)
+    .attr("y", legY)
+    .attr("fill", "#6b5b4d")
+    .style("font-size", "10px")
+    .style("font-weight", "500")
+    .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+    .text("Projected = model estimate (runs / game)");
+
+  if (actual != null) {
+    svg.append("circle").attr("cx", margin.left + 248).attr("cy", legY - 3).attr("r", 4).attr("fill", accent);
+    svg
+      .append("text")
+      .attr("x", margin.left + 258)
+      .attr("y", legY)
+      .attr("fill", "#6b5b4d")
+      .style("font-size", "10px")
+      .style("font-weight", "500")
+      .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+      .text("Actual = season to date");
   }
 }
 
-export function TeamRatingCharts({ offense, defense, team }: Props) {
+export function TeamRatingCharts({ comparison, team }: Props) {
   const offenseRef = useRef<SVGSVGElement | null>(null);
   const defenseRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
     if (offenseRef.current) {
-      const selectedRating = offense.find((r) => r.team === team);
-      const sub = selectedRating
-        ? `${abbrev(team)} scores ${selectedRating.value.toFixed(1)} runs / game`
-        : "";
-      drawStrip(
-        d3.select(offenseRef.current),
-        offense,
+      drawComparisonStrip(d3.select(offenseRef.current), {
+        title: "Runs scored / game",
+        projected: comparison.runs_scored_per_game_projected,
+        actual: comparison.runs_scored_per_game_actual,
         team,
-        "Runs Scored / Game",
-        sub,
-      );
+        higherIsBetter: true,
+      });
     }
     if (defenseRef.current) {
-      const selectedRating = defense.find((r) => r.team === team);
-      const sub = selectedRating
-        ? `${abbrev(team)} allows ${selectedRating.value.toFixed(1)} runs / game`
-        : "";
-      drawStrip(
-        d3.select(defenseRef.current),
-        defense,
+      drawComparisonStrip(d3.select(defenseRef.current), {
+        title: "Runs allowed / game",
+        projected: comparison.runs_allowed_per_game_projected,
+        actual: comparison.runs_allowed_per_game_actual,
         team,
-        "Runs Allowed / Game",
-        sub,
-      );
+        higherIsBetter: false,
+      });
     }
-  }, [offense, defense, team]);
+  }, [comparison, team]);
 
   return (
     <div className="rating-charts">
@@ -251,7 +245,7 @@ export function TeamRatingCharts({ offense, defense, team }: Props) {
           ref={offenseRef}
           className="chart-svg"
           role="img"
-          aria-label="Offense rating relative to league"
+          aria-label="Runs scored: actual versus projected"
         />
       </div>
       <div className="rating-chart">
@@ -259,7 +253,7 @@ export function TeamRatingCharts({ offense, defense, team }: Props) {
           ref={defenseRef}
           className="chart-svg"
           role="img"
-          aria-label="Defense rating relative to league"
+          aria-label="Runs allowed: actual versus projected"
         />
       </div>
     </div>

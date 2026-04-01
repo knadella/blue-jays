@@ -284,22 +284,14 @@ export default function App() {
           <section className="section-card chart-card ratings-section">
             <div className="section-header">
               <h2>Team Ratings</h2>
-              <span>Posterior model estimates, runs per game</span>
+              <span>Season run rates vs model projection</span>
             </div>
-            <TeamRatingCharts
-              offense={dashboard.team_ratings.offense}
-              defense={dashboard.team_ratings.defense}
-              team={displayedTeam}
-            />
+            <TeamRatingCharts comparison={dashboard.team_rating_vs_actual} team={displayedTeam} />
           </section>
 
           <section className="section-card chart-card ratings-section">
             <div className="section-header">
               <h2>Strength of Schedule</h2>
-              <span>
-                Cards show average opponent strength (model run differential) on a 0–10 league
-                scale. The timeline colors remaining opponents: green easier, red tougher.
-              </span>
             </div>
             <ScheduleHeatmap
               schedule={dashboard.remaining_schedule}

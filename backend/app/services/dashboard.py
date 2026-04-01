@@ -17,7 +17,13 @@ from config import (
     LEAGUES,
     TEAM_TO_DIVISION,
 )
-from data_source.mlb_api import build_record, completed_game_rows, fetch_schedule, split_schedule
+from data_source.mlb_api import (
+    build_record,
+    completed_game_rows,
+    fetch_schedule,
+    split_schedule,
+    summarize_team_performance,
+)
 from data_source.pitcher_stats import build_pitcher_quality
 
 from ..schemas import (
@@ -28,6 +34,7 @@ from ..schemas import (
     SimulationDensityCell,
     TeamRating,
     TeamRatings,
+    TeamRatingVsActual,
     TeamSimulationView,
     WinPoint,
 )
@@ -123,6 +130,34 @@ def _build_team_ratings(
     team_to_idx = {name: idx for idx, name in enumerate(snapshot.teams)}
     run_diff = offense_runs - defense_runs
     return TeamRatings(offense=offense_ratings, defense=defense_ratings), run_diff, team_to_idx
+
+
+def _team_rating_vs_actual(
+    team_name: str,
+    team_ratings: TeamRatings,
+    perf_summary: dict[str, dict[str, float]],
+) -> TeamRatingVsActual:
+    def pick_value(ratings: list[TeamRating], name: str) -> float:
+        for r in ratings:
+            if r.team == name:
+                return r.value
+        raise KeyError(name)
+
+    off_proj = pick_value(team_ratings.offense, team_name)
+    def_proj = pick_value(team_ratings.defense, team_name)
+    row = perf_summary.get(team_name, {})
+    games = float(row.get("games", 0.0))
+    actual_off: float | None = None
+    actual_def: float | None = None
+    if games > 0:
+        actual_off = round(float(row["runs_for_per_game"]), 2)
+        actual_def = round(float(row["runs_against_per_game"]), 2)
+    return TeamRatingVsActual(
+        runs_scored_per_game_projected=off_proj,
+        runs_scored_per_game_actual=actual_off,
+        runs_allowed_per_game_projected=def_proj,
+        runs_allowed_per_game_actual=actual_def,
+    )
 
 
 def _build_remaining_schedule_views(
@@ -510,6 +545,7 @@ def _build_all_dashboard_payloads_uncached(
             reverse=True,
         )
 
+    perf_summary = summarize_team_performance(completed)
     payloads: dict[str, DashboardResponse] = {}
     for team_name in snapshot.teams:
         payloads[team_name] = DashboardResponse(
@@ -517,6 +553,7 @@ def _build_all_dashboard_payloads_uncached(
             favorite_team=team_name,
             team_simulation=team_simulations[team_name],
             team_ratings=team_ratings,
+            team_rating_vs_actual=_team_rating_vs_actual(team_name, team_ratings, perf_summary),
             remaining_schedule=remaining_schedule_views[team_name],
             division_standings=division_standings_by_div,
             meta=DashboardMeta(

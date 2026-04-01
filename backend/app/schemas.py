@@ -53,6 +53,15 @@ class TeamRatings(BaseModel):
     defense: list[TeamRating] = Field(default_factory=list)
 
 
+class TeamRatingVsActual(BaseModel):
+    """Season-to-date actual run rates vs model projection for the dashboard team."""
+
+    runs_scored_per_game_projected: float
+    runs_scored_per_game_actual: Optional[float] = None
+    runs_allowed_per_game_projected: float
+    runs_allowed_per_game_actual: Optional[float] = None
+
+
 class ScheduleGame(BaseModel):
     date: str
     opponent: str
@@ -70,6 +79,7 @@ class DashboardResponse(BaseModel):
     favorite_team: str
     team_simulation: TeamSimulationView
     team_ratings: TeamRatings
+    team_rating_vs_actual: TeamRatingVsActual
     remaining_schedule: list[ScheduleGame] = Field(default_factory=list)
     division_standings: dict[str, list[DivisionStanding]] = Field(default_factory=dict)
     meta: DashboardMeta

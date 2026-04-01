@@ -117,3 +117,6 @@ def test_api_dashboard_no_refit(api_client: TestClient):
     sim = body.get("team_simulation") or {}
     assert "projected_final_wins" in sim
     assert "playoff_probability" in sim
+    vs = body.get("team_rating_vs_actual") or {}
+    assert "runs_scored_per_game_projected" in vs
+    assert "runs_allowed_per_game_projected" in vs
