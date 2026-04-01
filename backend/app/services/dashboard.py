@@ -46,6 +46,7 @@ from .modeling import _load_prior_seed, fit_or_load_monthly_snapshot, fit_or_loa
 from .storage import PosteriorSnapshot
 
 _MONTH_LABEL: dict[int, str] = {
+    3: "Mar",
     4: "Apr",
     5: "May",
     6: "Jun",
@@ -259,7 +260,7 @@ def _build_league_monthly_projection_templates(
         rng0,
     )
     templates: list[tuple[int, dict[str, tuple[float, float]]]] = []
-    for month in range(4, 10):
+    for month in range(3, 10):
         if date(season, month, 1) > as_of_cal:
             break
         m_rng = np.random.default_rng(season * 1000 + month)

@@ -10,67 +10,37 @@ interface Props {
 }
 
 const FONT = "'Inter', -apple-system, system-ui, sans-serif";
-const LEAGUE_COLOR = "#9a8b7c";
+const LG_COLOR = "#9a8b7c";
 
 interface LineDef {
-  key: string;
   color: string;
   dash: string;
   width: number;
   dotR: number;
-  dotFill: (c: string) => string;
-  dotStroke: (c: string) => string;
+  filled: boolean;
   val: (d: MonthlyRunRatePoint) => number | null;
   legendLabel: string;
 }
 
-function makeLineDefs(
-  accent: string,
-  teamAbbr: string,
-  mode: "scored" | "allowed",
-): LineDef[] {
+function makeLineDefs(accent: string, teamAbbr: string, mode: "scored" | "allowed"): LineDef[] {
   return [
     {
-      key: "league-proj",
-      color: LEAGUE_COLOR,
-      dash: "3,3",
-      width: 1.5,
-      dotR: 3,
-      dotFill: () => "#f5ede3",
-      dotStroke: () => LEAGUE_COLOR,
+      color: LG_COLOR, dash: "3,3", width: 1.5, dotR: 3, filled: false,
       val: (d) => (mode === "scored" ? d.league_runs_scored_projected : d.league_runs_allowed_projected),
       legendLabel: "League proj.",
     },
     {
-      key: "league-actual",
-      color: LEAGUE_COLOR,
-      dash: "",
-      width: 2,
-      dotR: 3.5,
-      dotFill: () => LEAGUE_COLOR,
-      dotStroke: () => "#fffaf4",
+      color: LG_COLOR, dash: "", width: 2, dotR: 3.5, filled: true,
       val: (d) => (mode === "scored" ? d.league_runs_scored_actual : d.league_runs_allowed_actual),
       legendLabel: "League actual",
     },
     {
-      key: "team-proj",
-      color: accent,
-      dash: "6,4",
-      width: 2,
-      dotR: 4,
-      dotFill: () => "#fffaf4",
-      dotStroke: () => accent,
+      color: accent, dash: "6,4", width: 2, dotR: 4, filled: false,
       val: (d) => (mode === "scored" ? d.runs_scored_projected : d.runs_allowed_projected),
       legendLabel: `${teamAbbr} proj.`,
     },
     {
-      key: "team-actual",
-      color: accent,
-      dash: "",
-      width: 2.5,
-      dotR: 5,
-      dotFill: () => accent,
-      dotStroke: () => "#fffaf4",
+      color: accent, dash: "", width: 2.5, dotR: 5, filled: true,
       val: (d) => (mode === "scored" ? d.runs_scored_actual : d.runs_allowed_actual),
       legendLabel: `${teamAbbr} actual`,
     },
@@ -86,43 +56,23 @@ function drawMonthlyChart(
   const accent = getTeamColor(team);
   const teamAbbr = getTeamAbbrev(team);
   const width = 520;
-  const height = 280;
-  const margin = { top: 44, right: 20, bottom: 56, left: 42 };
+  const height = 230;
+  const margin = { top: 44, right: 20, bottom: 28, left: 42 };
 
   svg.selectAll("*").remove();
   svg.attr("viewBox", `0 0 ${width} ${height}`);
 
   const title = mode === "scored" ? "Runs scored / game" : "Runs allowed / game";
 
-  svg
-    .append("text")
-    .attr("x", margin.left)
-    .attr("y", 18)
-    .attr("fill", "#1d1d1d")
-    .style("font-size", "14px")
-    .style("font-weight", "600")
-    .style("font-family", FONT)
-    .text(title);
-
-  svg
-    .append("text")
-    .attr("x", margin.left)
-    .attr("y", 34)
-    .attr("fill", "#9a8b7c")
-    .style("font-size", "10.5px")
-    .style("font-weight", "500")
-    .style("font-family", FONT)
+  svg.append("text").attr("x", margin.left).attr("y", 18).attr("fill", "#1d1d1d")
+    .style("font-size", "14px").style("font-weight", "600").style("font-family", FONT).text(title);
+  svg.append("text").attr("x", margin.left).attr("y", 34).attr("fill", "#9a8b7c")
+    .style("font-size", "10.5px").style("font-weight", "500").style("font-family", FONT)
     .text(`${teamAbbr} vs league · projection and actual per month`);
 
   if (data.length === 0) {
-    svg
-      .append("text")
-      .attr("x", width / 2)
-      .attr("y", height / 2)
-      .attr("text-anchor", "middle")
-      .attr("fill", "#9a8b7c")
-      .style("font-size", "13px")
-      .style("font-family", FONT)
+    svg.append("text").attr("x", width / 2).attr("y", height / 2).attr("text-anchor", "middle")
+      .attr("fill", "#9a8b7c").style("font-size", "13px").style("font-family", FONT)
       .text("No monthly data yet.");
     return;
   }
@@ -130,155 +80,87 @@ function drawMonthlyChart(
   const lines = makeLineDefs(accent, teamAbbr, mode);
 
   const yVals: number[] = [];
-  for (const d of data) {
-    for (const l of lines) {
-      const v = l.val(d);
-      if (v != null) yVals.push(v);
-    }
-  }
+  for (const d of data) for (const l of lines) { const v = l.val(d); if (v != null) yVals.push(v); }
   const yMin = Math.min(...yVals);
   const yMax = Math.max(...yVals);
   const yPad = Math.max((yMax - yMin) * 0.18, 0.25);
 
-  const x = d3
-    .scalePoint<string>()
-    .domain(data.map((d) => d.label))
-    .range([margin.left, width - margin.right])
-    .padding(0.3);
-
-  const y = d3
-    .scaleLinear()
-    .domain([yMin - yPad, yMax + yPad])
-    .nice()
+  const x = d3.scalePoint<string>().domain(data.map((d) => d.label))
+    .range([margin.left, width - margin.right]).padding(0.3);
+  const y = d3.scaleLinear().domain([yMin - yPad, yMax + yPad]).nice()
     .range([height - margin.bottom, margin.top]);
 
-  // axes
-  svg
-    .append("g")
-    .attr("transform", `translate(0,${height - margin.bottom})`)
+  // x-axis
+  svg.append("g").attr("transform", `translate(0,${height - margin.bottom})`)
     .call(d3.axisBottom(x).tickSize(0).tickPadding(8))
     .call((g) => g.select(".domain").attr("stroke", "#ddd1c4"))
-    .call((g) =>
-      g.selectAll("text").attr("fill", "#6b5b4d").style("font-size", "11px").style("font-weight", "600"),
-    );
+    .call((g) => g.selectAll("text").attr("fill", "#6b5b4d").style("font-size", "11px").style("font-weight", "600"));
 
-  svg
-    .append("g")
-    .attr("transform", `translate(${margin.left},0)`)
+  // y-axis
+  svg.append("g").attr("transform", `translate(${margin.left},0)`)
     .call(d3.axisLeft(y).ticks(5).tickFormat((v) => d3.format(".2f")(v as number)))
     .call((g) => g.select(".domain").remove())
-    .call((g) =>
-      g
-        .selectAll(".tick line")
-        .attr("x2", width - margin.left - margin.right)
-        .attr("stroke", "#f0e8df")
-        .attr("stroke-opacity", 0.9),
-    )
+    .call((g) => g.selectAll(".tick line").attr("x2", width - margin.left - margin.right).attr("stroke", "#f0e8df").attr("stroke-opacity", 0.9))
     .call((g) => g.selectAll("text").attr("fill", "#6b5b4d").style("font-size", "10px"));
 
-  // draw each line + dots
+  // lines + dots
   for (const l of lines) {
-    const lineGen = d3
-      .line<MonthlyRunRatePoint>()
-      .defined((d) => l.val(d) != null)
-      .x((d) => x(d.label)!)
-      .y((d) => y(l.val(d)!));
-
-    svg
-      .append("path")
-      .datum(data)
-      .attr("fill", "none")
-      .attr("stroke", l.color)
-      .attr("stroke-width", l.width)
-      .attr("stroke-dasharray", l.dash)
-      .attr("d", lineGen);
-
+    const gen = d3.line<MonthlyRunRatePoint>().defined((d) => l.val(d) != null)
+      .x((d) => x(d.label)!).y((d) => y(l.val(d)!));
+    svg.append("path").datum(data).attr("fill", "none").attr("stroke", l.color)
+      .attr("stroke-width", l.width).attr("stroke-dasharray", l.dash).attr("d", gen);
     data.forEach((d) => {
       const v = l.val(d);
       if (v == null) return;
-      svg
-        .append("circle")
-        .attr("cx", x(d.label)!)
-        .attr("cy", y(v))
-        .attr("r", l.dotR)
-        .attr("fill", l.dotFill(l.color))
-        .attr("stroke", l.dotStroke(l.color))
+      svg.append("circle").attr("cx", x(d.label)!).attr("cy", y(v)).attr("r", l.dotR)
+        .attr("fill", l.filled ? l.color : "#fffaf4")
+        .attr("stroke", l.filled ? "#fffaf4" : l.color)
         .attr("stroke-width", 1.8);
     });
   }
+}
 
-  // legend (2 × 2 grid below chart)
-  const legStartY = height - 40;
-  const col1 = margin.left;
-  const col2 = margin.left + 180;
-  const rowGap = 16;
-
-  function drawLegItem(lx: number, ly: number, def: LineDef) {
-    svg
-      .append("line")
-      .attr("x1", lx)
-      .attr("x2", lx + 16)
-      .attr("y1", ly - 2)
-      .attr("y2", ly - 2)
-      .attr("stroke", def.color)
-      .attr("stroke-width", def.width)
-      .attr("stroke-dasharray", def.dash);
-    svg
-      .append("circle")
-      .attr("cx", lx + 8)
-      .attr("cy", ly - 2)
-      .attr("r", def.dotR * 0.7)
-      .attr("fill", def.dotFill(def.color))
-      .attr("stroke", def.dotStroke(def.color))
-      .attr("stroke-width", 1.2);
-    svg
-      .append("text")
-      .attr("x", lx + 22)
-      .attr("y", ly)
-      .attr("fill", "#6b5b4d")
-      .style("font-size", "9px")
-      .style("font-weight", "500")
-      .style("font-family", FONT)
-      .text(def.legendLabel);
-  }
-
-  drawLegItem(col1, legStartY, lines[0]);
-  drawLegItem(col2, legStartY, lines[1]);
-  drawLegItem(col1, legStartY + rowGap, lines[2]);
-  drawLegItem(col2, legStartY + rowGap, lines[3]);
+function LegendItem({ color, dash, filled, label }: { color: string; dash: string; filled: boolean; label: string }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, marginRight: 16 }}>
+      <svg width="22" height="12" style={{ flexShrink: 0 }}>
+        <line x1="0" x2="16" y1="6" y2="6" stroke={color} strokeWidth={filled ? 2.5 : 2} strokeDasharray={dash} />
+        <circle cx="8" cy="6" r={3} fill={filled ? color : "#fffaf4"} stroke={filled ? "#fffaf4" : color} strokeWidth={1.5} />
+      </svg>
+      <span style={{ fontSize: "10px", fontWeight: 500, color: "#6b5b4d", fontFamily: FONT, whiteSpace: "nowrap" }}>
+        {label}
+      </span>
+    </span>
+  );
 }
 
 export function TeamRatingCharts({ monthly, team }: Props) {
   const offenseRef = useRef<SVGSVGElement | null>(null);
   const defenseRef = useRef<SVGSVGElement | null>(null);
+  const accent = getTeamColor(team);
+  const teamAbbr = getTeamAbbrev(team);
 
   useEffect(() => {
-    if (offenseRef.current) {
-      drawMonthlyChart(d3.select(offenseRef.current), monthly, team, "scored");
-    }
-    if (defenseRef.current) {
-      drawMonthlyChart(d3.select(defenseRef.current), monthly, team, "allowed");
-    }
+    if (offenseRef.current) drawMonthlyChart(d3.select(offenseRef.current), monthly, team, "scored");
+    if (defenseRef.current) drawMonthlyChart(d3.select(defenseRef.current), monthly, team, "allowed");
   }, [monthly, team]);
 
   return (
-    <div className="rating-charts">
-      <div className="rating-chart">
-        <svg
-          ref={offenseRef}
-          className="chart-svg"
-          role="img"
-          aria-label="Runs scored: monthly projections and actuals"
-        />
+    <>
+      <div className="rating-charts">
+        <div className="rating-chart">
+          <svg ref={offenseRef} className="chart-svg" role="img" aria-label="Runs scored: monthly projections and actuals" />
+        </div>
+        <div className="rating-chart">
+          <svg ref={defenseRef} className="chart-svg" role="img" aria-label="Runs allowed: monthly projections and actuals" />
+        </div>
       </div>
-      <div className="rating-chart">
-        <svg
-          ref={defenseRef}
-          className="chart-svg"
-          role="img"
-          aria-label="Runs allowed: monthly projections and actuals"
-        />
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "4px 0", marginTop: 6, padding: "0 20px" }}>
+        <LegendItem color={LG_COLOR} dash="3,3" filled={false} label="League proj." />
+        <LegendItem color={LG_COLOR} dash="" filled={true} label="League actual" />
+        <LegendItem color={accent} dash="6,4" filled={false} label={`${teamAbbr} proj.`} />
+        <LegendItem color={accent} dash="" filled={true} label={`${teamAbbr} actual`} />
       </div>
-    </div>
+    </>
   );
 }
