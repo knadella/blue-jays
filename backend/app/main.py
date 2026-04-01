@@ -32,7 +32,11 @@ from .schemas import (
     WalkForwardResponse,
     WalkForwardWindow,
 )
-from .services.dashboard import build_dashboard_payload, warm_dashboard_cache
+from .services.dashboard import (
+    build_dashboard_payload,
+    warm_dashboard_cache,
+    warm_monthly_projection_cache,
+)
 from .services.evaluation import build_evaluation, build_walk_forward_evaluation
 from .services.refresh import refit_model, refresh_actuals
 
@@ -160,6 +164,17 @@ def admin_refresh_actuals(
     """
     result = refresh_actuals(season)
     return RefreshResponse(**result)
+
+
+@app.post("/api/admin/warm-monthly-cache")
+async def admin_warm_monthly_cache(
+    _auth: Annotated[None, Depends(verify_admin_key)],
+    season: int = Query(DEFAULT_SEASON, ge=2000, le=2100),
+) -> dict[str, str]:
+    """Pre-compute monthly model snapshots to disk so dashboard requests
+    never block on MCMC.  Called by the scheduled refresh-actuals action."""
+    await asyncio.to_thread(warm_monthly_projection_cache, season)
+    return {"status": "ok"}
 
 
 @app.post("/api/admin/refit-model", response_model=RefitResponse)

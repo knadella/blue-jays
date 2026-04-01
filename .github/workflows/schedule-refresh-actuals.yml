@@ -90,3 +90,23 @@ jobs:
           echo "Response:"
           cat /tmp/body.txt
           echo
+
+      - name: POST /api/admin/warm-monthly-cache
+        run: |
+          set -euo pipefail
+          BASE="$(cat /tmp/api_base_url)"
+          KEY="$(cat /tmp/api_admin_key)"
+          URL="${BASE%/}/api/admin/warm-monthly-cache"
+          echo "POST $URL"
+          ARGS=(-fsS --max-time 900 -X POST "$URL" -H "Accept: application/json")
+          if [ -n "${KEY}" ]; then
+            ARGS+=(-H "X-Admin-Key: ${KEY}")
+          fi
+          curl "${ARGS[@]}" -o /tmp/monthly_body.txt || {
+            echo "::warning::warm-monthly-cache failed (non-fatal):"
+            cat /tmp/monthly_body.txt || true
+            exit 0
+          }
+          echo "Monthly cache response:"
+          cat /tmp/monthly_body.txt
+          echo

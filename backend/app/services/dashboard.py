@@ -249,6 +249,8 @@ def _build_league_monthly_projection_templates(
     completed: list[dict],
     completed_rows: list[dict],
     as_of_cal: date,
+    *,
+    allow_fit: bool = False,
 ) -> list[tuple[int, dict[str, tuple[float, float]]]]:
     rng0 = np.random.default_rng(season * 99_001)
     prior = _load_prior_seed(
@@ -271,7 +273,10 @@ def _build_league_monthly_projection_templates(
             ALL_TEAMS,
             prior,
             m_rng,
+            allow_fit=allow_fit,
         )
+        if snap is None:
+            continue
         prior = snap
         rates = {t: _team_run_rates_from_snapshot(snap, t) for t in snap.teams}
         templates.append((month, rates))
@@ -748,6 +753,21 @@ def clear_dashboard_cache() -> None:
 def warm_dashboard_cache(season: int = DEFAULT_SEASON) -> None:
     """Materialize the LRU dashboard cache for *season* (may run a long MCMC fit)."""
     _build_all_dashboard_payloads_cached(season)
+
+
+def warm_monthly_projection_cache(season: int = DEFAULT_SEASON) -> None:
+    """Pre-compute monthly model snapshots so dashboard requests can load them
+    from disk without blocking.  Intended to be called from the scheduled
+    refresh-actuals action (via the /api/admin/warm-monthly-cache endpoint)."""
+    from data_source.mlb_api import fetch_schedule, split_schedule, completed_game_rows
+
+    schedule = fetch_schedule(season)
+    completed, _ = split_schedule(schedule)
+    completed_rows = completed_game_rows(completed)
+    as_of_cal = _season_as_of_calendar(season, completed, date.today())
+    _build_league_monthly_projection_templates(
+        season, completed, completed_rows, as_of_cal, allow_fit=True,
+    )
 
 
 def build_dashboard_payload(

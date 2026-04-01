@@ -489,8 +489,15 @@ def fit_or_load_monthly_snapshot(
     teams: list[str],
     prior_snapshot: Optional[PosteriorSnapshot],
     rng: np.random.Generator,
-) -> PosteriorSnapshot:
-    """League-wide fit using games strictly before the first day of *month* (cached on disk)."""
+    *,
+    allow_fit: bool = True,
+) -> Optional[PosteriorSnapshot]:
+    """League-wide fit using games strictly before the first day of *month* (cached on disk).
+
+    When *allow_fit* is False, return None instead of running an expensive MCMC
+    fit.  Dashboard requests set allow_fit=False so the API never blocks;
+    the scheduled refresh-actuals action calls with allow_fit=True.
+    """
     from dataclasses import asdict
     import json
     from datetime import date
@@ -501,6 +508,8 @@ def fit_or_load_monthly_snapshot(
     path = monthly_projection_path(season, month, n_games)
     if path.is_file():
         return _load_snapshot_from_path(str(path.resolve()))
+    if not allow_fit:
+        return None
     snap = _fit_snapshot_from_games(
         season=season,
         completed_games=train,
