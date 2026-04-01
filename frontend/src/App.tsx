@@ -286,7 +286,7 @@ export default function App() {
               <h2>Team Ratings</h2>
               <span>Projections and actuals by month</span>
             </div>
-            <TeamRatingCharts monthly={dashboard.monthly_run_rates} team={displayedTeam} />
+            <TeamRatingCharts monthly={dashboard.monthly_run_rates ?? []} team={displayedTeam} />
           </section>
 
           <section className="section-card chart-card ratings-section">
@@ -297,8 +297,8 @@ export default function App() {
               schedule={dashboard.remaining_schedule}
               team={displayedTeam}
               season={dashboard.season}
-              scheduleStrengthPlayed={dashboard.team_simulation.schedule_strength_played}
-              scheduleStrengthRemaining={dashboard.team_simulation.schedule_strength_remaining}
+              scheduleStrengthPlayed={dashboard.team_simulation.schedule_strength_played ?? null}
+              scheduleStrengthRemaining={dashboard.team_simulation.schedule_strength_remaining ?? null}
             />
           </section>
         </>
