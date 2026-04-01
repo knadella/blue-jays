@@ -108,6 +108,11 @@ PRIOR_BACKFILL_DRAWS = _env_int("PRIOR_BACKFILL_DRAWS", 400)
 PRIOR_BACKFILL_TUNE = _env_int("PRIOR_BACKFILL_TUNE", 400)
 PRIOR_BACKFILL_CHAINS = _env_int("PRIOR_BACKFILL_CHAINS", 1)
 
+# Monthly “projection at month start” fits (cached under posteriors/<season>/monthly/).
+MONTHLY_PROJECTION_DRAWS = _env_int("MONTHLY_PROJECTION_DRAWS", 280)
+MONTHLY_PROJECTION_TUNE = _env_int("MONTHLY_PROJECTION_TUNE", 280)
+MONTHLY_PROJECTION_CHAINS = _env_int("MONTHLY_PROJECTION_CHAINS", 1)
+
 # First dashboard request with no saved snapshot: lighter MCMC so the HTTP
 # request returns in minutes, not tens of minutes. Weekly admin refit uses full POSTERIOR_*.
 COLD_START_POSTERIOR_DRAWS = _env_int("COLD_START_POSTERIOR_DRAWS", 400)

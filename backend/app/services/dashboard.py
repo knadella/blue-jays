@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 from collections import defaultdict
 from datetime import date
 from functools import lru_cache
@@ -15,6 +16,9 @@ from config import (
     FORWARD_SIMULATIONS,
     INSTANT_DASHBOARD_PRIOR,
     LEAGUES,
+    PRIOR_BACKFILL_CHAINS,
+    PRIOR_BACKFILL_DRAWS,
+    PRIOR_BACKFILL_TUNE,
     TEAM_TO_DIVISION,
 )
 from data_source.mlb_api import (
@@ -30,6 +34,7 @@ from ..schemas import (
     DashboardMeta,
     DashboardResponse,
     DivisionStanding,
+    MonthlyRunRatePoint,
     ScheduleGame,
     SimulationDensityCell,
     TeamRating,
@@ -38,8 +43,17 @@ from ..schemas import (
     TeamSimulationView,
     WinPoint,
 )
-from .modeling import fit_or_load_snapshot
+from .modeling import _load_prior_seed, fit_or_load_monthly_snapshot, fit_or_load_snapshot
 from .storage import PosteriorSnapshot
+
+_MONTH_LABEL: dict[int, str] = {
+    4: "Apr",
+    5: "May",
+    6: "Jun",
+    7: "Jul",
+    8: "Aug",
+    9: "Sep",
+}
 
 
 def _resolve_ties(
@@ -158,6 +172,114 @@ def _team_rating_vs_actual(
         runs_allowed_per_game_projected=def_proj,
         runs_allowed_per_game_actual=actual_def,
     )
+
+
+def _season_as_of_calendar(season: int, completed: list[dict], today: date) -> date:
+    """Latest calendar day used for in-season monthly cutoffs (through September)."""
+    in_year: list[date] = []
+    prefix = str(season)
+    for g in completed:
+        gd = g["game_date"][:10]
+        if gd.startswith(prefix):
+            in_year.append(date.fromisoformat(gd))
+    cap = date(season, 9, 30)
+    if not in_year:
+        return min(today, cap)
+    last_played = max(in_year)
+    return min(max(today, last_played), cap)
+
+
+def _team_run_rates_from_snapshot(snap: PosteriorSnapshot, team: str) -> tuple[float, float]:
+    idx = {n: i for i, n in enumerate(snap.teams)}[team]
+    mu_m = float(np.median(snap.mu_array()))
+    off_m = np.median(snap.offense_array(), axis=0)
+    def_m = np.median(snap.defense_array(), axis=0)
+    scored = round(float(np.exp(mu_m + off_m[idx])), 2)
+    allowed = round(float(np.exp(mu_m - def_m[idx])), 2)
+    return scored, allowed
+
+
+def _team_ytd_run_rates_through(
+    completed: list[dict],
+    team: str,
+    end: date,
+    season: int,
+) -> tuple[float | None, float | None, int]:
+    end_s = end.isoformat()
+    lo = f"{season}-02-20"
+    subset = [g for g in completed if lo <= g["game_date"][:10] <= end_s]
+    perf = summarize_team_performance(subset)
+    row = perf.get(team)
+    if not row or row["games"] <= 0:
+        return None, None, 0
+    return (
+        round(float(row["runs_for_per_game"]), 2),
+        round(float(row["runs_against_per_game"]), 2),
+        int(row["games"]),
+    )
+
+
+def _build_league_monthly_projection_templates(
+    season: int,
+    completed: list[dict],
+    completed_rows: list[dict],
+    as_of_cal: date,
+) -> list[tuple[int, dict[str, tuple[float, float]]]]:
+    rng0 = np.random.default_rng(season * 99_001)
+    prior = _load_prior_seed(
+        season,
+        ALL_TEAMS,
+        PRIOR_BACKFILL_DRAWS,
+        PRIOR_BACKFILL_TUNE,
+        PRIOR_BACKFILL_CHAINS,
+        rng0,
+    )
+    templates: list[tuple[int, dict[str, tuple[float, float]]]] = []
+    for month in range(4, 10):
+        if date(season, month, 1) > as_of_cal:
+            break
+        m_rng = np.random.default_rng(season * 1000 + month)
+        snap = fit_or_load_monthly_snapshot(
+            season,
+            month,
+            completed_rows,
+            ALL_TEAMS,
+            prior,
+            m_rng,
+        )
+        prior = snap
+        rates = {t: _team_run_rates_from_snapshot(snap, t) for t in snap.teams}
+        templates.append((month, rates))
+    return templates
+
+
+def _monthly_run_rate_points_for_team(
+    team: str,
+    season: int,
+    completed: list[dict],
+    as_of_cal: date,
+    templates: list[tuple[int, dict[str, tuple[float, float]]]],
+) -> list[MonthlyRunRatePoint]:
+    pts: list[MonthlyRunRatePoint] = []
+    for month, rates in templates:
+        if team not in rates:
+            continue
+        po, pa = rates[team]
+        last_d = date(season, month, calendar.monthrange(season, month)[1])
+        cutoff = min(last_d, as_of_cal)
+        ao, ad, ngames = _team_ytd_run_rates_through(completed, team, cutoff, season)
+        pts.append(
+            MonthlyRunRatePoint(
+                month=month,
+                label=_MONTH_LABEL[month],
+                runs_scored_projected=po,
+                runs_allowed_projected=pa,
+                runs_scored_actual_szn_to_date=ao,
+                runs_allowed_actual_szn_to_date=ad,
+                games_played_through=ngames,
+            )
+        )
+    return pts
 
 
 def _build_remaining_schedule_views(
@@ -546,6 +668,15 @@ def _build_all_dashboard_payloads_uncached(
         )
 
     perf_summary = summarize_team_performance(completed)
+    completed_rows = completed_game_rows(completed)
+    as_of_cal = _season_as_of_calendar(season, completed, date.today())
+    try:
+        month_templates = _build_league_monthly_projection_templates(
+            season, completed, completed_rows, as_of_cal
+        )
+    except Exception:
+        month_templates = []
+
     payloads: dict[str, DashboardResponse] = {}
     for team_name in snapshot.teams:
         payloads[team_name] = DashboardResponse(
@@ -554,6 +685,9 @@ def _build_all_dashboard_payloads_uncached(
             team_simulation=team_simulations[team_name],
             team_ratings=team_ratings,
             team_rating_vs_actual=_team_rating_vs_actual(team_name, team_ratings, perf_summary),
+            monthly_run_rates=_monthly_run_rate_points_for_team(
+                team_name, season, completed, as_of_cal, month_templates
+            ),
             remaining_schedule=remaining_schedule_views[team_name],
             division_standings=division_standings_by_div,
             meta=DashboardMeta(

@@ -14,6 +14,9 @@ from config import (
     COLD_START_POSTERIOR_TUNE,
     DEFAULT_HFA_LOG_RUNS,
     LEAGUE_BASELINE_RUNS,
+    MONTHLY_PROJECTION_CHAINS,
+    MONTHLY_PROJECTION_DRAWS,
+    MONTHLY_PROJECTION_TUNE,
     POSTERIOR_CHAINS,
     POSTERIOR_DRAWS,
     POSTERIOR_TUNE,
@@ -36,7 +39,13 @@ from data_source.mlb_api import (
 )
 from data_source.pitcher_stats import pitcher_quality_arrays
 
-from .storage import PosteriorSnapshot, load_latest_snapshot, save_snapshot
+from .storage import (
+    PosteriorSnapshot,
+    _load_snapshot_from_path,
+    load_latest_snapshot,
+    monthly_projection_path,
+    save_snapshot,
+)
 
 
 @dataclass
@@ -471,6 +480,42 @@ def _fit_snapshot_from_games(
     if not skip_save:
         save_snapshot(snapshot)
     return snapshot
+
+
+def fit_or_load_monthly_snapshot(
+    season: int,
+    month: int,
+    completed_rows: list[dict],
+    teams: list[str],
+    prior_snapshot: Optional[PosteriorSnapshot],
+    rng: np.random.Generator,
+) -> PosteriorSnapshot:
+    """League-wide fit using games strictly before the first day of *month* (cached on disk)."""
+    from dataclasses import asdict
+    import json
+    from datetime import date
+
+    first = date(season, month, 1).isoformat()
+    train = [g for g in completed_rows if g["game_date"] < first]
+    n_games = len(train)
+    path = monthly_projection_path(season, month, n_games)
+    if path.is_file():
+        return _load_snapshot_from_path(str(path.resolve()))
+    snap = _fit_snapshot_from_games(
+        season=season,
+        completed_games=train,
+        teams=teams,
+        prior_snapshot=prior_snapshot,
+        draws=MONTHLY_PROJECTION_DRAWS,
+        tune=MONTHLY_PROJECTION_TUNE,
+        chains=max(1, MONTHLY_PROJECTION_CHAINS),
+        rng=rng,
+        source=f"pymc-fit-monthly-m{month:02d}",
+        skip_save=True,
+    )
+    path.write_text(json.dumps(asdict(snap)))
+    _load_snapshot_from_path.cache_clear()
+    return snap
 
 
 def fit_or_load_snapshot(

@@ -47,6 +47,16 @@ export interface TeamRatingVsActual {
   runs_allowed_per_game_actual: number | null;
 }
 
+export interface MonthlyRunRatePoint {
+  month: number;
+  label: string;
+  runs_scored_projected: number;
+  runs_allowed_projected: number;
+  runs_scored_actual_szn_to_date: number | null;
+  runs_allowed_actual_szn_to_date: number | null;
+  games_played_through: number;
+}
+
 export interface ScheduleGame {
   date: string;
   opponent: string;
@@ -65,6 +75,7 @@ export interface DashboardResponse {
   team_simulation: TeamSimulationView;
   team_ratings: TeamRatings;
   team_rating_vs_actual: TeamRatingVsActual;
+  monthly_run_rates: MonthlyRunRatePoint[];
   remaining_schedule: ScheduleGame[];
   division_standings: Record<string, DivisionStanding[]>;
   meta: {

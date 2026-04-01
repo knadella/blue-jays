@@ -120,3 +120,4 @@ def test_api_dashboard_no_refit(api_client: TestClient):
     vs = body.get("team_rating_vs_actual") or {}
     assert "runs_scored_per_game_projected" in vs
     assert "runs_allowed_per_game_projected" in vs
+    assert isinstance(body.get("monthly_run_rates"), list)

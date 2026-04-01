@@ -284,9 +284,9 @@ export default function App() {
           <section className="section-card chart-card ratings-section">
             <div className="section-header">
               <h2>Team Ratings</h2>
-              <span>Season run rates vs model projection</span>
+              <span>Monthly projections vs season-to-date actuals</span>
             </div>
-            <TeamRatingCharts comparison={dashboard.team_rating_vs_actual} team={displayedTeam} />
+            <TeamRatingCharts monthly={dashboard.monthly_run_rates} team={displayedTeam} />
           </section>
 
           <section className="section-card chart-card ratings-section">

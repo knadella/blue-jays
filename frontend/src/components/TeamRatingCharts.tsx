@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import * as d3 from "d3";
 
-import type { TeamRatingVsActual } from "../api";
+import type { MonthlyRunRatePoint } from "../api";
 import { getTeamAbbrev, getTeamColor } from "../teamMetadata";
 
 interface Props {
-  comparison: TeamRatingVsActual;
+  monthly: MonthlyRunRatePoint[];
   team: string;
 }
 
@@ -13,36 +13,22 @@ function abbrev(team: string): string {
   return getTeamAbbrev(team);
 }
 
-interface Marker {
-  value: number;
-  label: string;
-  fill: string;
-  r: number;
-}
-
-function drawComparisonStrip(
+function drawMonthlyChart(
   svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
-  params: {
-    title: string;
-    projected: number;
-    actual: number | null;
-    team: string;
-    higherIsBetter: boolean;
-  },
+  data: MonthlyRunRatePoint[],
+  team: string,
+  mode: "scored" | "allowed",
 ) {
-  const { title, projected, actual, team, higherIsBetter } = params;
   const accent = getTeamColor(team);
   const width = 520;
-  const height = 208;
-  const margin = { top: 44, right: 24, bottom: 58, left: 24 };
+  const height = 268;
+  const margin = { top: 44, right: 20, bottom: 52, left: 34 };
 
   svg.selectAll("*").remove();
   svg.attr("viewBox", `0 0 ${width} ${height}`);
 
-  const subtitle =
-    actual != null
-      ? `${abbrev(team)}: model projection vs games played to date`
-      : `${abbrev(team)}: no completed games yet — projection only`;
+  const title = mode === "scored" ? "Runs scored / game" : "Runs allowed / game";
+  const subtitle = `${abbrev(team)}: projection at each month start vs season-to-date actual`;
 
   svg
     .append("text")
@@ -64,47 +50,56 @@ function drawComparisonStrip(
     .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
     .text(subtitle);
 
-  const markers: Marker[] = [
-    { value: projected, label: "Projected", fill: "#9a8b7c", r: 6 },
-  ];
-  if (actual != null) {
-    markers.push({ value: actual, label: "Actual", fill: accent, r: 7 });
+  if (data.length === 0) {
+    svg
+      .append("text")
+      .attr("x", width / 2)
+      .attr("y", height / 2)
+      .attr("text-anchor", "middle")
+      .attr("fill", "#9a8b7c")
+      .style("font-size", "13px")
+      .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+      .text("No monthly history yet for this season.");
+    return;
   }
 
-  const values = markers.map((m) => m.value);
-  let lo = Math.min(...values);
-  let hi = Math.max(...values);
-  if (hi - lo < 0.25) {
-    const mid = (lo + hi) / 2;
-    lo = mid - 0.35;
-    hi = mid + 0.35;
-  } else {
-    const pad = (hi - lo) * 0.18;
-    lo -= pad;
-    hi += pad;
+  const proj = (d: MonthlyRunRatePoint) =>
+    mode === "scored" ? d.runs_scored_projected : d.runs_allowed_projected;
+  const act = (d: MonthlyRunRatePoint) =>
+    mode === "scored" ? d.runs_scored_actual_szn_to_date : d.runs_allowed_actual_szn_to_date;
+
+  const yVals: number[] = [];
+  for (const d of data) {
+    yVals.push(proj(d));
+    const a = act(d);
+    if (a != null) yVals.push(a);
   }
+  const yMin = Math.min(...yVals);
+  const yMax = Math.max(...yVals);
+  const yPad = Math.max((yMax - yMin) * 0.12, 0.2);
 
-  const x = d3.scaleLinear().domain([lo, hi]).range([margin.left, width - margin.right]);
+  const x = d3
+    .scalePoint<string>()
+    .domain(data.map((d) => d.label))
+    .range([margin.left, width - margin.right])
+    .padding(0.45);
 
-  const axisY = height - margin.bottom + 8;
-  const centerY = margin.top + (axisY - margin.top) / 2 + 2;
+  const y = d3
+    .scaleLinear()
+    .domain([yMin - yPad, yMax + yPad])
+    .nice()
+    .range([height - margin.bottom, margin.top]);
 
   svg
     .append("g")
-    .attr("transform", `translate(0,${axisY})`)
+    .attr("transform", `translate(0,${height - margin.bottom})`)
     .call(
       d3
         .axisBottom(x)
-        .ticks(5)
-        .tickFormat((d) => d3.format(".1f")(d as number)),
+        .tickSize(0)
+        .tickPadding(10),
     )
     .call((g) => g.select(".domain").attr("stroke", "#ddd1c4"))
-    .call((g) =>
-      g
-        .selectAll(".tick line")
-        .attr("stroke", "#e8dfd6")
-        .attr("stroke-opacity", 0.9),
-    )
     .call((g) =>
       g
         .selectAll("text")
@@ -112,131 +107,105 @@ function drawComparisonStrip(
         .style("font-size", "11px"),
     );
 
-  const cys = markers.map(() => centerY);
-  if (markers.length === 2) {
-    const cx0 = x(markers[0].value);
-    const cx1 = x(markers[1].value);
-    if (Math.abs(cx0 - cx1) < 18) {
-      cys[0] = centerY - 12;
-      cys[1] = centerY + 12;
-    }
-  }
+  svg
+    .append("g")
+    .attr("transform", `translate(${margin.left},0)`)
+    .call(d3.axisLeft(y).ticks(5).tickFormat((v) => d3.format(".1f")(v as number)))
+    .call((g) => g.select(".domain").remove())
+    .call((g) =>
+      g
+        .selectAll(".tick line")
+        .attr("x2", width - margin.left - margin.right)
+        .attr("stroke", "#f0e8df")
+        .attr("stroke-opacity", 0.9),
+    )
+    .call((g) =>
+      g
+        .selectAll("text")
+        .attr("fill", "#6b5b4d")
+        .style("font-size", "10px"),
+    );
 
-  const projectedMarker = markers.find((m) => m.label === "Projected")!;
+  const lineProj = d3
+    .line<MonthlyRunRatePoint>()
+    .x((d) => x(d.label)!)
+    .y((d) => y(proj(d)));
 
-  markers.forEach((m, i) => {
-    const cx = x(m.value);
-    const cy = cys[i];
+  const lineAct = d3
+    .line<MonthlyRunRatePoint>()
+    .defined((d) => act(d) != null)
+    .x((d) => x(d.label)!)
+    .y((d) => y(act(d)!));
 
-    svg
-      .append("line")
-      .attr("x1", cx)
-      .attr("x2", cx)
-      .attr("y1", axisY)
-      .attr("y2", cy + m.r)
-      .attr("stroke", m.fill)
-      .attr("stroke-opacity", 0.35)
-      .attr("stroke-width", 1.5)
-      .attr("stroke-dasharray", "3,2");
+  svg
+    .append("path")
+    .datum(data)
+    .attr("fill", "none")
+    .attr("stroke", "#9a8b7c")
+    .attr("stroke-width", 2)
+    .attr("stroke-dasharray", "6,4")
+    .attr("d", lineProj);
 
+  svg
+    .append("path")
+    .datum(data)
+    .attr("fill", "none")
+    .attr("stroke", accent)
+    .attr("stroke-width", 2.5)
+    .attr("d", lineAct);
+
+  data.forEach((d) => {
+    const cx = x(d.label)!;
     svg
       .append("circle")
       .attr("cx", cx)
-      .attr("cy", cy)
-      .attr("r", m.r)
-      .attr("fill", m.fill)
-      .attr("stroke", "#fffaf4")
+      .attr("cy", y(proj(d)))
+      .attr("r", 4)
+      .attr("fill", "#fffaf4")
+      .attr("stroke", "#9a8b7c")
       .attr("stroke-width", 2);
-
-    svg
-      .append("text")
-      .attr("x", cx)
-      .attr("y", cy - m.r - 6)
-      .attr("text-anchor", "middle")
-      .attr("fill", m.fill)
-      .style("font-size", "10px")
-      .style("font-weight", "700")
-      .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
-      .text(m.label);
-
-    svg
-      .append("text")
-      .attr("x", cx)
-      .attr("y", cy + m.r + 14)
-      .attr("text-anchor", "middle")
-      .attr("fill", "#1d1d1d")
-      .style("font-size", "12px")
-      .style("font-weight", "700")
-      .style("font-family", "Georgia, 'Times New Roman', serif")
-      .text(m.value.toFixed(2));
-
-    if (m.label === "Actual" && markers.length === 2) {
-      const delta = m.value - projectedMarker.value;
-      const sign = delta > 0 ? "+" : "";
-      const good = higherIsBetter ? delta >= 0 : delta <= 0;
-      svg
-        .append("text")
-        .attr("x", cx)
-        .attr("y", cy + m.r + 30)
-        .attr("text-anchor", "middle")
-        .attr("fill", good ? "#2d6a4f" : "#9b2226")
-        .style("font-size", "10px")
-        .style("font-weight", "600")
-        .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
-        .text(`${sign}${delta.toFixed(2)} vs proj.`);
+    const av = act(d);
+    if (av != null) {
+      svg.append("circle").attr("cx", cx).attr("cy", y(av)).attr("r", 5).attr("fill", accent).attr("stroke", "#fffaf4").attr("stroke-width", 2);
     }
   });
 
-  const legY = height - 10;
-  svg.append("circle").attr("cx", margin.left + 6).attr("cy", legY - 3).attr("r", 4).attr("fill", "#9a8b7c");
+  const legY = height - 14;
+  svg.append("line").attr("x1", margin.left).attr("x2", margin.left + 18).attr("y1", legY - 3).attr("y2", legY - 3).attr("stroke", "#9a8b7c").attr("stroke-width", 2).attr("stroke-dasharray", "6,4");
   svg
     .append("text")
-    .attr("x", margin.left + 16)
+    .attr("x", margin.left + 24)
     .attr("y", legY)
     .attr("fill", "#6b5b4d")
     .style("font-size", "10px")
     .style("font-weight", "500")
     .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
-    .text("Projected = model estimate (runs / game)");
+    .text("Projected (month start)");
 
-  if (actual != null) {
-    svg.append("circle").attr("cx", margin.left + 248).attr("cy", legY - 3).attr("r", 4).attr("fill", accent);
-    svg
-      .append("text")
-      .attr("x", margin.left + 258)
-      .attr("y", legY)
-      .attr("fill", "#6b5b4d")
-      .style("font-size", "10px")
-      .style("font-weight", "500")
-      .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
-      .text("Actual = season to date");
-  }
+  svg.append("line").attr("x1", margin.left + 168).attr("x2", margin.left + 186).attr("y1", legY - 3).attr("y2", legY - 3).attr("stroke", accent).attr("stroke-width", 2.5);
+  svg
+    .append("text")
+    .attr("x", margin.left + 192)
+    .attr("y", legY)
+    .attr("fill", "#6b5b4d")
+    .style("font-size", "10px")
+    .style("font-weight", "500")
+    .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+    .text("Actual (season-to-date)");
 }
 
-export function TeamRatingCharts({ comparison, team }: Props) {
+export function TeamRatingCharts({ monthly, team }: Props) {
   const offenseRef = useRef<SVGSVGElement | null>(null);
   const defenseRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
     if (offenseRef.current) {
-      drawComparisonStrip(d3.select(offenseRef.current), {
-        title: "Runs scored / game",
-        projected: comparison.runs_scored_per_game_projected,
-        actual: comparison.runs_scored_per_game_actual,
-        team,
-        higherIsBetter: true,
-      });
+      drawMonthlyChart(d3.select(offenseRef.current), monthly, team, "scored");
     }
     if (defenseRef.current) {
-      drawComparisonStrip(d3.select(defenseRef.current), {
-        title: "Runs allowed / game",
-        projected: comparison.runs_allowed_per_game_projected,
-        actual: comparison.runs_allowed_per_game_actual,
-        team,
-        higherIsBetter: false,
-      });
+      drawMonthlyChart(d3.select(defenseRef.current), monthly, team, "allowed");
     }
-  }, [comparison, team]);
+  }, [monthly, team]);
 
   return (
     <div className="rating-charts">
@@ -245,7 +214,7 @@ export function TeamRatingCharts({ comparison, team }: Props) {
           ref={offenseRef}
           className="chart-svg"
           role="img"
-          aria-label="Runs scored: actual versus projected"
+          aria-label="Runs scored by month: projected versus actual"
         />
       </div>
       <div className="rating-chart">
@@ -253,7 +222,7 @@ export function TeamRatingCharts({ comparison, team }: Props) {
           ref={defenseRef}
           className="chart-svg"
           role="img"
-          aria-label="Runs allowed: actual versus projected"
+          aria-label="Runs allowed by month: projected versus actual"
         />
       </div>
     </div>

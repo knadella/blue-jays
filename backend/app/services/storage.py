@@ -138,6 +138,13 @@ def latest_snapshot_path(season: int) -> Optional[Path]:
     return candidates[-1] if candidates else None
 
 
+def monthly_projection_path(season: int, month: int, n_games: int) -> Path:
+    """Disk cache for a league-wide fit using games strictly before month start."""
+    path = snapshot_directory(season) / "monthly"
+    path.mkdir(parents=True, exist_ok=True)
+    return path / f"m{month:02d}_n{n_games}.json"
+
+
 @lru_cache(maxsize=8)
 def _load_snapshot_from_path(path_str: str) -> PosteriorSnapshot:
     raw = json.loads(Path(path_str).read_text())
