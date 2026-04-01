@@ -62,6 +62,9 @@ function groupIntoSeries(schedule: ScheduleGame[]): Series[] {
   return series;
 }
 
+const SOS_CARD_W = 252;
+const SOS_CARD_GAP = 16;
+
 function appendSosMetricCard(
   root: d3.Selection<SVGSVGElement, unknown, null, undefined>,
   x: number,
@@ -69,7 +72,7 @@ function appendSosMetricCard(
   value: number | null,
   accent: string,
 ) {
-  const w = 252;
+  const w = SOS_CARD_W;
   const h = 34;
   const g = root.append("g").attr("transform", `translate(${x}, 2)`);
   g.append("rect")
@@ -115,10 +118,20 @@ export function ScheduleHeatmap({
 
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
-    svg.attr("viewBox", `0 0 ${width} ${height}`);
+    // Extra horizontal room so the right legend label is not clipped by the viewBox.
+    const viewW = width + 36;
+    svg.attr("viewBox", `0 0 ${viewW} ${height}`);
 
-    appendSosMetricCard(svg, 20, "SOS played", scheduleStrengthPlayed, accent);
-    appendSosMetricCard(svg, 20 + 252 + 16, "SOS remaining", scheduleStrengthRemaining, accent);
+    const sosRowW = SOS_CARD_W * 2 + SOS_CARD_GAP;
+    const sosRowX = (width - sosRowW) / 2;
+    appendSosMetricCard(svg, sosRowX, "SOS played", scheduleStrengthPlayed, accent);
+    appendSosMetricCard(
+      svg,
+      sosRowX + SOS_CARD_W + SOS_CARD_GAP,
+      "SOS remaining",
+      scheduleStrengthRemaining,
+      accent,
+    );
 
     const chart = svg.append("g").attr("transform", `translate(0,${chartOffsetY})`);
 
@@ -279,7 +292,7 @@ export function ScheduleHeatmap({
       .style("font-size", "8px")
       .style("font-weight", "600")
       .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
-      .text("TOUGH");
+      .text("HARD");
   }, [schedule, team, season, scheduleStrengthPlayed, scheduleStrengthRemaining]);
 
   return (
