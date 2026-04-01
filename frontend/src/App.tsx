@@ -284,15 +284,9 @@ export default function App() {
           <section className="section-card chart-card ratings-section">
             <div className="section-header">
               <h2>Team Ratings</h2>
-              <span>Monthly projections (team vs league); YTD actuals as horizontal lines</span>
+              <span>Projections and actuals by month</span>
             </div>
-            <TeamRatingCharts
-              monthly={dashboard.monthly_run_rates}
-              team={displayedTeam}
-              teamVsActual={dashboard.team_rating_vs_actual}
-              leagueActualScored={dashboard.league_runs_scored_per_game_actual}
-              leagueActualAllowed={dashboard.league_runs_allowed_per_game_actual}
-            />
+            <TeamRatingCharts monthly={dashboard.monthly_run_rates} team={displayedTeam} />
           </section>
 
           <section className="section-card chart-card ratings-section">

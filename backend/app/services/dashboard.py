@@ -208,17 +208,36 @@ def _league_avg_projected_rates(
     return round(float(np.mean(offs)), 2), round(float(np.mean(als)), 2)
 
 
-def _league_mean_actual_run_rates(
-    perf_summary: dict[str, dict[str, float]],
+def _monthly_actual_run_rates(
+    completed: list[dict],
+    season: int,
+    month: int,
+    as_of_cal: date,
+) -> dict[str, tuple[float | None, float | None]]:
+    """Per-team actual runs scored/allowed per game for games within *month* only."""
+    first = f"{season}-{month:02d}-01"
+    cap = min(as_of_cal, date(season, month + 1, 1) if month < 12 else date(season, 12, 31))
+    last = cap.isoformat()
+    month_games = [g for g in completed if first <= g["game_date"][:10] < last]
+    perf = summarize_team_performance(month_games)
+    out: dict[str, tuple[float | None, float | None]] = {}
+    for team in ALL_TEAMS:
+        row = perf.get(team)
+        if not row or row["games"] <= 0:
+            out[team] = (None, None)
+        else:
+            out[team] = (
+                round(float(row["runs_for_per_game"]), 2),
+                round(float(row["runs_against_per_game"]), 2),
+            )
+    return out
+
+
+def _league_mean_from_team_rates(
+    team_rates: dict[str, tuple[float | None, float | None]],
 ) -> tuple[float | None, float | None]:
-    scored: list[float] = []
-    allowed: list[float] = []
-    for row in perf_summary.values():
-        g = float(row.get("games", 0.0))
-        if g <= 0:
-            continue
-        scored.append(float(row["runs_for_per_game"]))
-        allowed.append(float(row["runs_against_per_game"]))
+    scored = [v[0] for v in team_rates.values() if v[0] is not None]
+    allowed = [v[1] for v in team_rates.values() if v[1] is not None]
     if not scored:
         return None, None
     return round(float(np.mean(scored)), 2), round(float(np.mean(allowed)), 2)
@@ -260,6 +279,9 @@ def _build_league_monthly_projection_templates(
 
 def _monthly_run_rate_points_for_team(
     team: str,
+    season: int,
+    completed: list[dict],
+    as_of_cal: date,
     templates: list[tuple[int, dict[str, tuple[float, float]]]],
 ) -> list[MonthlyRunRatePoint]:
     pts: list[MonthlyRunRatePoint] = []
@@ -268,6 +290,9 @@ def _monthly_run_rate_points_for_team(
             continue
         po, pa = rates[team]
         lo_s, lo_a = _league_avg_projected_rates(rates)
+        actuals = _monthly_actual_run_rates(completed, season, month, as_of_cal)
+        team_act = actuals.get(team, (None, None))
+        lg_act = _league_mean_from_team_rates(actuals)
         pts.append(
             MonthlyRunRatePoint(
                 month=month,
@@ -276,6 +301,10 @@ def _monthly_run_rate_points_for_team(
                 runs_allowed_projected=pa,
                 league_runs_scored_projected=lo_s,
                 league_runs_allowed_projected=lo_a,
+                runs_scored_actual=team_act[0],
+                runs_allowed_actual=team_act[1],
+                league_runs_scored_actual=lg_act[0],
+                league_runs_allowed_actual=lg_act[1],
             )
         )
     return pts
@@ -667,7 +696,6 @@ def _build_all_dashboard_payloads_uncached(
         )
 
     perf_summary = summarize_team_performance(completed)
-    league_act_off, league_act_def = _league_mean_actual_run_rates(perf_summary)
     completed_rows = completed_game_rows(completed)
     as_of_cal = _season_as_of_calendar(season, completed, date.today())
     try:
@@ -685,9 +713,9 @@ def _build_all_dashboard_payloads_uncached(
             team_simulation=team_simulations[team_name],
             team_ratings=team_ratings,
             team_rating_vs_actual=_team_rating_vs_actual(team_name, team_ratings, perf_summary),
-            monthly_run_rates=_monthly_run_rate_points_for_team(team_name, month_templates),
-            league_runs_scored_per_game_actual=league_act_off,
-            league_runs_allowed_per_game_actual=league_act_def,
+            monthly_run_rates=_monthly_run_rate_points_for_team(
+                team_name, season, completed, as_of_cal, month_templates,
+            ),
             remaining_schedule=remaining_schedule_views[team_name],
             division_standings=division_standings_by_div,
             meta=DashboardMeta(

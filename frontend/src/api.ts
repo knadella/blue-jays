@@ -54,6 +54,10 @@ export interface MonthlyRunRatePoint {
   runs_allowed_projected: number;
   league_runs_scored_projected: number;
   league_runs_allowed_projected: number;
+  runs_scored_actual: number | null;
+  runs_allowed_actual: number | null;
+  league_runs_scored_actual: number | null;
+  league_runs_allowed_actual: number | null;
 }
 
 export interface ScheduleGame {
@@ -75,8 +79,6 @@ export interface DashboardResponse {
   team_ratings: TeamRatings;
   team_rating_vs_actual: TeamRatingVsActual;
   monthly_run_rates: MonthlyRunRatePoint[];
-  league_runs_scored_per_game_actual: number | null;
-  league_runs_allowed_per_game_actual: number | null;
   remaining_schedule: ScheduleGame[];
   division_standings: Record<string, DivisionStanding[]>;
   meta: {
