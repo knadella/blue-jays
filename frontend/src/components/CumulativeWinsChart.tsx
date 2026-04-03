@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as d3 from "d3";
 
 import type { SimulationDensityCell, WinPoint } from "../api";
+import { CHART, CHART_FONT } from "../chartTheme";
 import { getTeamAbbrev, getTeamColor, getTeamLogoPath } from "../teamMetadata";
 
 interface Props {
@@ -30,6 +31,9 @@ function ordinal(value: number) {
       return `${value}th`;
   }
 }
+
+const REDUCED_MOTION = typeof window !== "undefined"
+  && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function CumulativeWinsChart({
   actualPoints,
@@ -79,7 +83,7 @@ export function CumulativeWinsChart({
       return;
     }
 
-    const durationMs = 1600;
+    const durationMs = REDUCED_MOTION ? 100 : 1600;
     const maxFrame = forecastSummary.length - 1;
     let animationFrameId = 0;
     let startTime: number | null = null;
@@ -114,6 +118,9 @@ export function CumulativeWinsChart({
       wins: point.wins,
     }));
     const visibleForecast = forecastSummary.slice(0, frameIndex + 1);
+    const maxFrame = Math.max(forecastSummary.length - 1, 1);
+    const animProgress = frameIndex / maxFrame;
+
     const allWins = [
       ...parsedActual.map((point) => point.wins),
       ...forecastSummary.flatMap((point) => [point.p10, point.p25, point.p50, point.p75, point.p90]),
@@ -179,8 +186,8 @@ export function CumulativeWinsChart({
       .call((group) =>
         group
           .selectAll("line")
-          .attr("stroke", "#c9b9aa")
-          .attr("stroke-opacity", 0.95)
+          .attr("stroke", CHART.gridMajor)
+          .attr("stroke-opacity", 0.9)
           .attr("stroke-dasharray", "0"),
       )
       .call((group) => group.select(".domain").remove())
@@ -199,8 +206,8 @@ export function CumulativeWinsChart({
       .call((group) =>
         group
           .selectAll("line")
-          .attr("stroke", "#ece1d6")
-          .attr("stroke-opacity", 0.35),
+          .attr("stroke", CHART.gridMinor)
+          .attr("stroke-opacity", 1),
       )
       .call((group) => group.select(".domain").remove())
       .call((group) => group.selectAll("text").remove());
@@ -214,27 +221,43 @@ export function CumulativeWinsChart({
           .tickValues(monthTicks)
           .tickFormat((value) => monthFormatter(value as Date)),
       )
-      .call((group) => group.select(".domain").remove());
+      .call((group) => group.select(".domain").remove())
+      .call((group) =>
+        group
+          .selectAll("text")
+          .attr("fill", CHART.inkMuted)
+          .style("font-size", "11px")
+          .style("font-weight", "600")
+          .style("font-family", CHART_FONT),
+      );
 
     svg
       .append("g")
       .attr("transform", `translate(${margin.left},0)`)
       .call(d3.axisLeft(y).ticks(8))
-      .call((group) => group.select(".domain").remove());
+      .call((group) => group.select(".domain").remove())
+      .call((group) =>
+        group
+          .selectAll("text")
+          .attr("fill", CHART.inkMuted)
+          .style("font-size", "10px")
+          .style("font-weight", "600")
+          .style("font-family", CHART_FONT),
+      );
 
     if (visibleForecast.length > 1) {
       svg
         .append("path")
         .datum(visibleForecast)
-        .attr("fill", "#0d5c75")
+        .attr("fill", accentColor)
         .attr("opacity", 0.14)
         .attr("d", area80(visibleForecast) ?? "");
 
       svg
         .append("path")
         .datum(visibleForecast)
-        .attr("fill", "#0d5c75")
-        .attr("opacity", 0.28)
+        .attr("fill", accentColor)
+        .attr("opacity", 0.26)
         .attr("d", area50(visibleForecast) ?? "");
 
       svg
@@ -246,22 +269,36 @@ export function CumulativeWinsChart({
         .attr("d", line(visibleForecast.map((point) => ({ date: point.date, wins: point.p50 }))) ?? "");
     }
 
-    svg
+    // Actual wins line draws over roughly the first 75% of the frame animation
+    const lineDrawProgress = REDUCED_MOTION ? 1 : Math.min(1, animProgress * 1.35);
+    const lineDrawEased = d3.easeCubicOut(lineDrawProgress);
+
+    const actualPath = svg
       .append("path")
       .datum(parsedActual)
       .attr("fill", "none")
-      .attr("stroke", "#1f1f1f")
+      .attr("stroke", CHART.ink)
       .attr("stroke-width", 3)
       .attr("d", line(parsedActual) ?? "");
 
+    const pathNode = actualPath.node();
+    if (pathNode && lineDrawEased < 1) {
+      const totalLen = pathNode.getTotalLength();
+      actualPath
+        .attr("stroke-dasharray", totalLen)
+        .attr("stroke-dashoffset", totalLen * (1 - lineDrawEased));
+    }
+
+    // End-dot appears near end of line-draw
     const lastActualPoint = parsedActual[parsedActual.length - 1];
-    if (lastActualPoint) {
+    const dotScale = REDUCED_MOTION ? 1 : d3.easeCubicOut(Math.max(0, Math.min(1, (lineDrawProgress - 0.8) / 0.2)));
+    if (lastActualPoint && dotScale > 0) {
       svg
         .append("circle")
         .attr("cx", x(lastActualPoint.date))
         .attr("cy", y(lastActualPoint.wins))
-        .attr("r", 4)
-        .attr("fill", "#1f1f1f");
+        .attr("r", 4 * dotScale)
+        .attr("fill", CHART.ink);
     }
 
     const lastForecastPoint = visibleForecast[visibleForecast.length - 1];
@@ -315,8 +352,8 @@ export function CumulativeWinsChart({
       tipGroup
         .append("circle")
         .attr("r", 18)
-        .attr("fill", "#fffaf4")
-        .attr("opacity", 0.95)
+        .attr("fill", CHART.cardFill)
+        .attr("opacity", 0.96)
         .attr("stroke", accentColor)
         .attr("stroke-width", 2.5);
 
@@ -341,6 +378,7 @@ export function CumulativeWinsChart({
 
     }
 
+    // Stats overlay card — fades and slides in during second half of animation
     const defs = svg.append("defs");
     const shadowFilter = defs.append("filter")
       .attr("id", "stats-shadow")
@@ -352,8 +390,8 @@ export function CumulativeWinsChart({
       .attr("dx", 0)
       .attr("dy", 1)
       .attr("stdDeviation", 6)
-      .attr("flood-color", "#1a1a1a")
-      .attr("flood-opacity", 0.09);
+      .attr("flood-color", CHART.ink)
+      .attr("flood-opacity", 0.08);
 
     const cardClipId = "stats-clip";
     defs.append("clipPath").attr("id", cardClipId)
@@ -362,7 +400,12 @@ export function CumulativeWinsChart({
       .attr("height", 88)
       .attr("rx", 8);
 
-    const statsGroup = svg.append("g").attr("transform", `translate(${statX},${statY})`);
+    const statsAlpha = REDUCED_MOTION ? 1 : d3.easeCubicOut(Math.max(0, Math.min(1, (animProgress - 0.5) / 0.4)));
+    const statsSlide = REDUCED_MOTION ? 0 : 22 * (1 - statsAlpha);
+
+    const statsGroup = svg.append("g")
+      .attr("transform", `translate(${statX},${statY + statsSlide})`)
+      .attr("opacity", statsAlpha);
     const cardW = 306;
     const cardH = 88;
     const colW = cardW / 3;
@@ -371,7 +414,8 @@ export function CumulativeWinsChart({
       .attr("width", cardW)
       .attr("height", cardH)
       .attr("rx", 8)
-      .attr("fill", "#ffffff")
+      .attr("fill", CHART.cardFill)
+      .attr("stroke", CHART.cardStroke)
       .attr("filter", "url(#stats-shadow)");
 
     const clipped = statsGroup.append("g").attr("clip-path", `url(#${cardClipId})`);
@@ -394,10 +438,10 @@ export function CumulativeWinsChart({
         .attr("y", 22)
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "hanging")
-        .attr("fill", stat.isHero ? accentColor : "#1a1a1a")
+        .attr("fill", stat.isHero ? accentColor : CHART.ink)
         .style("font-size", stat.isHero ? "30px" : "22px")
         .style("font-weight", "700")
-        .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+        .style("font-family", CHART_FONT)
         .text(stat.value);
 
       statsGroup.append("text")
@@ -405,11 +449,11 @@ export function CumulativeWinsChart({
         .attr("y", 58)
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "hanging")
-        .attr("fill", "#9a9a9a")
+        .attr("fill", CHART.statLabel)
         .style("font-size", "9.5px")
         .style("font-weight", "600")
         .style("letter-spacing", "0.07em")
-        .style("font-family", "'Inter', -apple-system, system-ui, sans-serif")
+        .style("font-family", CHART_FONT)
         .text(stat.label);
 
       if (i < stats.length - 1) {
@@ -419,7 +463,7 @@ export function CumulativeWinsChart({
           .attr("y1", 16)
           .attr("x2", dx)
           .attr("y2", cardH - 16)
-          .attr("stroke", "#ebebeb")
+          .attr("stroke", CHART.divider)
           .attr("stroke-width", 1);
       }
     });
