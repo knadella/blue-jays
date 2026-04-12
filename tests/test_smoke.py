@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 import numpy as np
+import pandas as pd
 import pytest
 from starlette.testclient import TestClient
 
@@ -14,6 +15,37 @@ from data_source.game_features import (
     compute_rest_days,
 )
 from data_source.mlb_api import completed_game_rows
+from data_source.statcast_weekly import build_team_record_from_statcast
+
+
+def test_build_team_record_from_statcast_counts_wins():
+    df = pd.DataFrame(
+        [
+            {
+                "game_pk": 100,
+                "home_team": "TOR",
+                "away_team": "NYY",
+                "post_home_score": 5,
+                "post_away_score": 3,
+            },
+            {
+                "game_pk": 100,
+                "home_team": "TOR",
+                "away_team": "NYY",
+                "post_home_score": 5,
+                "post_away_score": 3,
+            },
+            {
+                "game_pk": 200,
+                "home_team": "NYY",
+                "away_team": "TOR",
+                "post_home_score": 1,
+                "post_away_score": 4,
+            },
+        ]
+    )
+    assert build_team_record_from_statcast(df, "TOR") == {"w": 2, "l": 0}
+    assert build_team_record_from_statcast(df, "NYY") == {"w": 0, "l": 2}
 
 
 def test_schedule_strength_10_scales_opponent_run_diff():

@@ -1,0 +1,7 @@
+{
+  "name": "mlb-forecast",
+  "private": true,
+  "scripts": {
+    "dev": "bash scripts/dev_both.sh"
+  }
+}

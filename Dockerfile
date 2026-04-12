@@ -19,9 +19,10 @@ RUN pip install --upgrade pip \
 COPY config.py .
 COPY data_source ./data_source
 COPY backend ./backend
+COPY data/statcast_local ./data/statcast_local
 
 # Ephemeral cache dirs (overridden when a Fly volume is mounted at /data)
-RUN mkdir -p .cache/posteriors
+RUN mkdir -p .cache/posteriors .cache/statcast_frames .cache/weekly_cache
 
 EXPOSE 8000
 

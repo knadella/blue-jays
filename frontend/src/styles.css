@@ -324,6 +324,20 @@ body {
   margin-bottom: 14px;
 }
 
+.eyebrow-row--season {
+  gap: 10px 16px;
+}
+
+.pill-group--season {
+  gap: 6px;
+}
+
+.pill-season {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
 .season-pill {
   display: inline-flex;
   align-items: center;
@@ -549,6 +563,29 @@ body {
 
 .section-header--rich {
   align-items: flex-start;
+}
+
+.section-header__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+.section-header .section-header__stat-rank {
+  font-family: var(--font-mono);
+  font-size: 40px;
+  font-weight: 900;
+  color: var(--ink);
+  letter-spacing: -0.04em;
+}
+.section-header .section-header__stat-val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: -0.01em;
 }
 
 .section-header__copy {
@@ -955,4 +992,538 @@ body {
   .chart-card {
     padding: 12px 10px 16px;
   }
+}
+
+/* ---- Weekly Statcast actuals ---- */
+.hero.hero--compact .hero-inner {
+  padding-bottom: 12px;
+}
+
+.week-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.week-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.week-select-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.week-select select {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--ink);
+  min-width: 220px;
+}
+
+.week-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 8px 0 28px;
+}
+
+@media (max-width: 820px) {
+  .week-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pitch-mix-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.week-kpi h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.week-kpi-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.week-kpi-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--card-border);
+  color: var(--ink-soft);
+}
+
+.week-kpi-list strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.pitch-mix-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+
+.pitch-mix-block {
+  min-width: 0;
+}
+
+.pitch-mix-title {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+}
+
+.pitch-mix-sub {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pitch-mix-empty {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.data-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.data-table th.num,
+.data-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pitch-code {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.pitch-name {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+}
+
+.weekly-chart-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.weekly-chart-svg {
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  aspect-ratio: 720 / 300;
+  display: block;
+  margin: 0 auto;
+}
+
+/* ---- Offense tier trend (Apr–Sep, no raw numbers) ---- */
+.savant-offense {
+  position: relative;
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 4px 0 8px;
+}
+
+.savant-offense__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.savant-offense__hint {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+  max-width: 520px;
+  text-align: right;
+}
+
+.savant-tier-trend__meta {
+  align-items: flex-start;
+}
+
+.savant-tier-trend__title {
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.savant-tier-trend__actions {
+  flex-shrink: 0;
+}
+
+.savant-tier-trend__replay {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.savant-tier-trend__hint {
+  flex: 1;
+  min-width: 200px;
+}
+
+.savant-tier-trend__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 24px;
+  justify-content: center;
+  margin-bottom: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.savant-tier-trend__legend-i--poor {
+  color: #d62828;
+}
+
+.savant-tier-trend__legend-i--avg {
+  color: #6b7380;
+}
+
+.savant-tier-trend__legend-i--great {
+  color: #2f67b8;
+}
+
+/* Faceted grid */
+.savant-facet-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.savant-facet {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px 4px;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.savant-facet:hover {
+  border-color: rgba(26, 26, 46, 0.12);
+  box-shadow: var(--shadow-soft);
+}
+
+.savant-facet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.savant-facet__label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.savant-facet__badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.savant-facet__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.savant-facet__hover-val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.savant-tier-trend__xlab {
+  fill: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+}
+
+/* Pulse halo on latest dot */
+@keyframes savant-pulse {
+  0% { r: 5; opacity: 0.5; }
+  100% { r: 14; opacity: 0; }
+}
+.savant-tier-trend__pulse {
+  animation: savant-pulse 2s ease-out infinite;
+  pointer-events: none;
+}
+
+/* Expandable chase card */
+.savant-facet-slot--expanded {
+  grid-column: 1 / -1;
+}
+.savant-facet-slot--expandable {
+  cursor: pointer;
+}
+
+.savant-facet--expanded {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: 6px 14px 6px;
+}
+.savant-facet--expanded .savant-facet {
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+.savant-facet--expanded .savant-facet:hover {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.savant-facet__zone-split {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.savant-facet__zone-trend {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+.savant-facet__zone-trend .savant-facet {
+  padding-bottom: 0;
+  border: none;
+  box-shadow: none;
+}
+.savant-facet__zone-trend .savant-facet:hover {
+  border-color: transparent;
+  box-shadow: none;
+}
+.savant-facet__zone-heatmap {
+  flex: 0 0 auto;
+}
+
+/* Chase zone heatmap */
+.chase-zone-heatmap {
+  width: 150px;
+}
+.chase-zone-heatmap__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.chase-zone-heatmap__tip-main {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--ink);
+}
+.chase-zone-heatmap__tip-sub {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  fill: var(--muted);
+}
+.chase-zone-heatmap__legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+.chase-zone-heatmap__legend-bar {
+  width: 60px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #fff5f0, #fb6a4a, #a50f15);
+}
+
+/* Barrel scatter */
+.barrel-scatter {
+  width: 150px;
+}
+.barrel-scatter__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.barrel-scatter__tick {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  fill: var(--muted);
+}
+.barrel-scatter__axis-label {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  fill: var(--muted);
+  font-weight: 600;
+}
+.barrel-scatter__zone-label {
+  font-family: var(--font-sans);
+  font-size: 7px;
+  font-weight: 700;
+}
+
+/* Spray chart */
+.spray-chart {
+  width: 150px;
+}
+.spray-chart__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+@keyframes chase-cell-pulse {
+  0% { opacity: 0.7; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.7; }
+}
+.chase-zone-heatmap__pulse {
+  animation: chase-cell-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .savant-facet-grid {
+    grid-template-columns: 1fr;
+  }
+  .savant-facet__zone-split {
+    flex-direction: column;
+  }
+  .savant-facet__zone-heatmap {
+    flex: none;
+    max-width: 180px;
+    margin: 0 auto;
+  }
+}
+@media (max-width: 720px) {
+  .savant-offense__hint,
+  .savant-tier-trend__hint {
+    text-align: left;
+  }
+}
+
+.weekly-chart-empty {
+  padding: 28px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
+  border: 1px dashed var(--card-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.weekly-chart-empty p {
+  margin: 0 0 8px;
+}
+
+.weekly-chart-empty-hint {
+  margin: 0 !important;
+  font-size: 13px;
+  color: var(--muted-light);
+}
+
+.empty-weeks-actions {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  border: 1px solid rgba(196, 114, 42, 0.2);
+}
+
+.empty-weeks-copy {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.empty-weeks-note {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #8b5a16;
+}
+
+.pill-season-fallback {
+  border: 1px solid rgba(26, 26, 46, 0.12);
+  cursor: pointer;
+}
+
+.data-note {
+  color: #8b5a16;
+  font-size: 14px;
+  margin-top: 18px;
+}
+
+.data-footnote {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 16px;
+  line-height: 1.55;
 }

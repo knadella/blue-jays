@@ -13,6 +13,9 @@ primary_region = "iad"
 
 [env]
   POSTERIOR_CACHE_DIR = "/data/posteriors"
+  STATCAST_CACHE_DIR = "/data/statcast_frames"
+  WEEKLY_CACHE_DIR = "/data/weekly_cache"
+  STATCAST_LOCAL_DIR = "/data/statcast_local"
 
 [http_service]
   internal_port = 8000

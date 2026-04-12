@@ -7,3 +7,5 @@ PyMC
 arviz
 xarray
 MLB-StatsAPI
+pybaseball
+requests

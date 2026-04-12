@@ -102,6 +102,194 @@ class DashboardResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Weekly Statcast actuals (pitch-level progression)
+# ---------------------------------------------------------------------------
+
+
+class PitchTypeRow(BaseModel):
+    pitch_type: str
+    pitch_label: str
+    pitches: int
+    swing_rate: float
+    whiff_rate: Optional[float] = None
+    chase_rate: Optional[float] = None
+    xwoba_on_contact: Optional[float] = None
+
+
+class WeekSideMetrics(BaseModel):
+    """Plate-discipline and contact summary for one split (offense or run prevention)."""
+
+    pitches: int
+    plate_appearances: int = 0
+    swing_rate: Optional[float] = None
+    whiff_rate: Optional[float] = None
+    zone_swing_rate: Optional[float] = None
+    chase_rate: Optional[float] = None
+    contact_rate: Optional[float] = None
+    called_strike_rate: Optional[float] = None
+    xwoba_on_contact: Optional[float] = None
+    xwoba: Optional[float] = None
+    avg_exit_velo_bip: Optional[float] = None
+    hard_hit_rate: Optional[float] = None
+    barrel_rate: Optional[float] = None
+    avg_launch_angle_bip: Optional[float] = None
+    groundball_rate: Optional[float] = None
+    flyball_rate: Optional[float] = None
+    popup_rate: Optional[float] = None
+    avg_iso_value_bip: Optional[float] = None
+    if_standard_pct: Optional[float] = None
+    if_strategic_pct: Optional[float] = None
+    of_strategic_pct: Optional[float] = None
+
+
+class WeeklyBucket(BaseModel):
+    week_key: str
+    week_start: str
+    week_end: str
+    offense: WeekSideMetrics
+    run_prevention: WeekSideMetrics
+    hitting_vs_pitch_types: list[PitchTypeRow] = Field(default_factory=list)
+    pitching_pitch_types: list[PitchTypeRow] = Field(default_factory=list)
+
+
+class OffenseMonthLeagueShape(BaseModel):
+    """Apr–Sep calendar month: offense metric ranks vs other clubs that month (1 = best)."""
+
+    month: int = Field(..., ge=4, le=9)
+    xwoba_pct: Optional[int] = None
+    chase_pct: Optional[int] = None
+    whiff_pct: Optional[int] = None
+    hard_hit_pct: Optional[int] = None
+    xwoba_rank: Optional[int] = None
+    barrel_rank: Optional[int] = None
+    chase_rank: Optional[int] = None
+    whiff_rank: Optional[int] = None
+    # Pitching/defense ranks (1 = best, i.e. lowest xwOBA allowed, lowest barrel allowed, highest chase generated, highest whiff generated)
+    p_xwoba_rank: Optional[int] = None
+    p_barrel_rank: Optional[int] = None
+    p_chase_rank: Optional[int] = None
+    p_whiff_rank: Optional[int] = None
+
+
+class ChaseZoneCell(BaseModel):
+    x: int
+    y: int
+    n: int
+    sw: int
+    iz: int
+
+
+class ChaseZoneMonth(BaseModel):
+    month: int
+    cells: list[ChaseZoneCell]
+
+
+class ChaseZoneGrid(BaseModel):
+    sz_top: float
+    sz_bot: float
+    zone_width: float
+    nx: int
+    ny: int
+    x_range: list[float]
+    y_range: list[float]
+    months: list[ChaseZoneMonth]
+
+
+class WhiffZoneCell(BaseModel):
+    x: int
+    y: int
+    n: int
+    wh: int
+
+
+class WhiffZoneMonth(BaseModel):
+    month: int
+    cells: list[WhiffZoneCell]
+
+
+class WhiffZoneGrid(BaseModel):
+    sz_top: float
+    sz_bot: float
+    zone_width: float
+    nx: int
+    ny: int
+    x_range: list[float]
+    y_range: list[float]
+    months: list[WhiffZoneMonth]
+
+
+class BarrelCell(BaseModel):
+    x: int
+    y: int
+    n: int
+    brl: int
+
+
+class BarrelMonth(BaseModel):
+    month: int
+    cells: list[BarrelCell]
+
+
+class BarrelGrid(BaseModel):
+    nx: int
+    ny: int
+    ev_range: list[float]
+    la_range: list[float]
+    months: list[BarrelMonth]
+
+
+class SprayCell(BaseModel):
+    x: int
+    y: int
+    n: int
+    xw: float
+
+
+class SprayMonth(BaseModel):
+    month: int
+    cells: list[SprayCell]
+
+
+class SprayGrid(BaseModel):
+    nx: int
+    ny: int
+    x_range: list[float]
+    y_range: list[float]
+    months: list[SprayMonth]
+
+
+class WeeklyActualsResponse(BaseModel):
+    season: int
+    team: str
+    team_abbrev: str
+    division: str
+    wins: int
+    losses: int
+    runs_per_game: float = 0.0
+    runs_allowed_per_game: float = 0.0
+    runs_per_game_rank: int = 0
+    runs_allowed_per_game_rank: int = 0
+    run_differential: int = 0
+    division_place: int = 0
+    streak: str = ""
+    weeks: list[WeeklyBucket] = Field(default_factory=list)
+    statcast_rows: int = 0
+    data_through: Optional[str] = None
+    generated_at: str
+    note: Optional[str] = None
+    offense_monthly_league_shape: list[OffenseMonthLeagueShape] = Field(default_factory=list)
+    league_offense_months_teams: int = 0
+    chase_zone_grid: Optional[ChaseZoneGrid] = None
+    whiff_zone_grid: Optional[WhiffZoneGrid] = None
+    barrel_grid: Optional[BarrelGrid] = None
+    spray_grid: Optional[SprayGrid] = None
+    pitching_chase_zone_grid: Optional[ChaseZoneGrid] = None
+    pitching_whiff_zone_grid: Optional[WhiffZoneGrid] = None
+    pitching_barrel_grid: Optional[BarrelGrid] = None
+    pitching_spray_grid: Optional[SprayGrid] = None
+
+
+# ---------------------------------------------------------------------------
 # Evaluation schemas
 # ---------------------------------------------------------------------------
 

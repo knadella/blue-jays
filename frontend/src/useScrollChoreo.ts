@@ -45,7 +45,18 @@ export function useScrollChoreo() {
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule, { passive: true });
 
+    /* Charts mount after async fetch; without this, new `[data-scroll-choreo]` nodes never get `--choreo` updated. */
+    const ro =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => schedule())
+        : null;
+    ro?.observe(document.documentElement);
+    for (let i = 0; i < 5; i++) {
+      requestAnimationFrame(() => schedule());
+    }
+
     return () => {
+      ro?.disconnect();
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);

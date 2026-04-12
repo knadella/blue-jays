@@ -24,6 +24,9 @@ var/
 .DS_Store
 .streamlit/
 .cache/
+# Statcast Parquet extracts (generated; see scripts/download_statcast_extracts.py)
+data/statcast_local/*.parquet
+data/statcast_local/*.pkl
 .venv/
 .pytest_cache/
 

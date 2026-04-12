@@ -83,15 +83,23 @@ def _parse_cors_origins() -> list[str]:
 # Comma-separated origins for CORS (production frontend URL(s)).
 CORS_ORIGINS = _parse_cors_origins()
 
+# Local-only / viz lockdown: never allow arbitrary github.io origins.
+MLB_LOCAL_SITE = _env_bool("MLB_LOCAL_SITE", default=False)
+
 # GitHub Pages sends Origin https://<user>.github.io (no /repo path). Allowing this regex
 # avoids a silent production failure when Fly has data but CORS_ORIGINS was not set.
-# Set ENABLE_GITHUB_PAGES_CORS=0 to disable. Custom GitHub Pages domains still need CORS_ORIGINS.
-_ENABLE_GH_PAGES = os.getenv("ENABLE_GITHUB_PAGES_CORS", "1").strip().lower() not in (
-    "0",
-    "false",
-    "no",
-    "",
-)
+# When unset: enabled on Fly, disabled elsewhere. Set ENABLE_GITHUB_PAGES_CORS=1/0 to override.
+# MLB_LOCAL_SITE=1 always disables this rule.
+_gh_pages_env = os.getenv("ENABLE_GITHUB_PAGES_CORS", "").strip().lower()
+if MLB_LOCAL_SITE:
+    _ENABLE_GH_PAGES = False
+elif _gh_pages_env in ("1", "true", "yes", "on"):
+    _ENABLE_GH_PAGES = True
+elif _gh_pages_env in ("0", "false", "no", "off"):
+    _ENABLE_GH_PAGES = False
+else:
+    _ENABLE_GH_PAGES = _RUNNING_ON_FLY
+
 GITHUB_PAGES_CORS_ORIGIN_REGEX = (
     r"^https://[a-zA-Z0-9-]+\.github\.io$"
     if _ENABLE_GH_PAGES
