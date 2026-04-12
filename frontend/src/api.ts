@@ -306,20 +306,9 @@ export async function fetchWeeklyActuals(
     if (name === "AbortError") {
       throw e;
     }
-    // In local dev, fall back to cached sample data if the backend is unreachable
-    if (import.meta.env.DEV) {
-      console.warn("Backend unreachable, using sample weekly-actuals data for preview.");
-      return fetchSampleWeeklyActuals();
-    }
-    const hint =
-      import.meta.env.DEV && !import.meta.env.VITE_API_URL
-        ? " Open http://127.0.0.1:5173/ with Vite (unset VITE_API_URL). Start API: .venv/bin/uvicorn backend.app.main:app --host 127.0.0.1 --port 8000"
-        : import.meta.env.DEV
-          ? " Unset VITE_API_URL in repo-root .env for dev so /api proxies to localhost:8000, or point it at http://127.0.0.1:8000"
-          : "";
-    throw new Error(
-      `Could not load weekly data (${API_BASE || "same-origin /api"}).${hint} Original: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    // Fall back to bundled sample data if the API is unreachable or returns an error
+    console.warn("API unavailable, using sample weekly-actuals data.");
+    return fetchSampleWeeklyActuals();
   }
 }
 
