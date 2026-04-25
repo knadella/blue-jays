@@ -180,3 +180,79 @@ class RefreshResponse(BaseModel):
     season: int
     games_completed: int
     timestamp: str
+
+
+# ---------------------------------------------------------------------------
+# Today (post-game story)
+# ---------------------------------------------------------------------------
+
+
+class GameHeader(BaseModel):
+    game_pk: int
+    game_date: str
+    venue: str
+    home_team: str
+    home_abbr: str
+    away_team: str
+    away_abbr: str
+    home_score: int
+    away_score: int
+    jays_won: bool
+    jays_score: int
+    opp_score: int
+
+
+class WEPoint(BaseModel):
+    play_index: int
+    inning: int
+    half: str  # "T" or "B"
+    we_jays: float
+
+
+class LeveragePlay(BaseModel):
+    play_index: int
+    inning: int
+    half: str
+    score_before: str
+    description: str
+    wpa_jays: float
+    we_before_jays: float
+    we_after_jays: float
+
+
+class Contributor(BaseModel):
+    player_id: int
+    name: str
+    wpa: float
+    pa: int
+    rbi: int = 0
+    best_play: Optional[str] = None
+    worst_play: Optional[str] = None
+
+
+class PitcherLine(BaseModel):
+    player_id: int
+    name: str
+    role: str  # "starter" | "relief"
+    ip: str
+    h: int
+    r: int
+    er: int
+    k: int
+    bb: int
+    pitches: int
+    note: str = ""
+
+
+class TodayResponse(BaseModel):
+    header: GameHeader
+    we_trajectory: list[WEPoint]
+    leverage_plays: list[LeveragePlay]
+    top_contributors: list[Contributor]
+    negative_contributors: list[Contributor]
+    starter: Optional[PitcherLine] = None
+    relievers: list[PitcherLine] = Field(default_factory=list)
+    bullpen_pitches: int = 0
+    opp_starter: Optional[PitcherLine] = None
+    we_table_meta: dict
+    generated_at: str

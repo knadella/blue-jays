@@ -17,7 +17,8 @@ from config import (
     TEAM_ABBREVS,
 )
 
-from .schemas import RefreshResponse
+from .schemas import RefreshResponse, TodayResponse
+from .services.game_story import build_today_payload
 from .services.weekly_actuals import build_weekly_actuals_payload
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,15 @@ def root() -> dict[str, str]:
 @app.get("/api/team")
 def team() -> dict[str, str]:
     return {"team": FAVORITE_TEAM}
+
+
+@app.get("/api/today", response_model=TodayResponse)
+def today() -> TodayResponse:
+    """Post-game story for the most recent completed Blue Jays game."""
+    payload = build_today_payload()
+    if payload is None:
+        raise HTTPException(status_code=404, detail="No recent Final Blue Jays game found")
+    return payload
 
 
 @app.get("/api/weekly-actuals")
