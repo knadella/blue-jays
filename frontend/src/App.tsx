@@ -3,36 +3,14 @@ import { useEffect, useState } from "react";
 import { fetchWeeklyActuals, type WeeklyActualsResponse } from "./api";
 import { OffenseSavantBars } from "./components/OffenseSavantBars";
 import { PitchingSavantBars } from "./components/PitchingSavantBars";
-import { getTeamAbbrev, getTeamColor } from "./teamMetadata";
+import { getTeamAbbrev } from "./teamMetadata";
 import { useScrollChoreo } from "./useScrollChoreo";
 
-const LEAGUE_DIVISIONS: Record<string, string[]> = {
-  AL: ["East", "Central", "West"],
-  NL: ["East", "Central", "West"],
-};
-
-const DIVISION_TEAMS: Record<string, string[]> = {
-  "AL East": ["New York Yankees", "Baltimore Orioles", "Boston Red Sox", "Tampa Bay Rays", "Toronto Blue Jays"],
-  "AL Central": ["Cleveland Guardians", "Kansas City Royals", "Detroit Tigers", "Minnesota Twins", "Chicago White Sox"],
-  "AL West": ["Houston Astros", "Seattle Mariners", "Texas Rangers", "Oakland Athletics", "Los Angeles Angels"],
-  "NL East": ["Philadelphia Phillies", "Atlanta Braves", "New York Mets", "Washington Nationals", "Miami Marlins"],
-  "NL Central": ["Milwaukee Brewers", "Chicago Cubs", "St. Louis Cardinals", "Cincinnati Reds", "Pittsburgh Pirates"],
-  "NL West": ["Los Angeles Dodgers", "San Diego Padres", "Arizona Diamondbacks", "San Francisco Giants", "Colorado Rockies"],
-};
-
+const TEAM = "Toronto Blue Jays";
 const DEFAULT_SEASON = Number(import.meta.env.VITE_MLB_SEASON) || 2026;
 
-function ordSuffix(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return s[(v - 20) % 10] || s[v] || s[0];
-}
-
 export default function App() {
-  const [league, setLeague] = useState("AL");
-  const [division, setDivision] = useState("East");
-  const [team, setTeam] = useState("Toronto Blue Jays");
-  const [season, setSeason] = useState(DEFAULT_SEASON);
+  const [season] = useState(DEFAULT_SEASON);
   const [payload, setPayload] = useState<WeeklyActualsResponse | null>(null);
 
   const [error, setError] = useState<string | null>(null);
@@ -40,21 +18,6 @@ export default function App() {
   const [slowHint, setSlowHint] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   useScrollChoreo();
-
-  const divisionKey = `${league} ${division}`;
-  const divisionTeams = DIVISION_TEAMS[divisionKey] ?? [];
-
-  const handleLeagueChange = (next: string) => {
-    setLeague(next);
-    const firstDiv = LEAGUE_DIVISIONS[next][0];
-    setDivision(firstDiv);
-    setTeam(DIVISION_TEAMS[`${next} ${firstDiv}`]?.[0] ?? team);
-  };
-
-  const handleDivisionChange = (next: string) => {
-    setDivision(next);
-    setTeam(DIVISION_TEAMS[`${league} ${next}`]?.[0] ?? team);
-  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -64,10 +27,9 @@ export default function App() {
     const tick = window.setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
     const hint = window.setTimeout(() => setSlowHint(true), 12000);
 
-    fetchWeeklyActuals(team, season, controller.signal)
+    fetchWeeklyActuals(season, controller.signal)
       .then((data) => {
         setPayload(data);
-
         setError(null);
       })
       .catch((err: Error) => {
@@ -86,9 +48,7 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [team, season]);
-
-  const accent = getTeamColor(team);
+  }, [season]);
 
   return (
     <div className="app-root">
@@ -100,7 +60,7 @@ export default function App() {
                 <span className="hero-diamond" />
               </div>
               <div className="eyebrow-row eyebrow-row--season">
-                <span className="eyebrow">Statcast · {season}</span>
+                <span className="eyebrow">Toronto Blue Jays · Statcast · {season}</span>
               </div>
               <h1>
                 <span className="headline-line">What actually</span>
@@ -112,51 +72,6 @@ export default function App() {
               </p>
             </div>
           </div>
-
-          <nav className="team-picker scroll-choreo scroll-choreo--picker" data-scroll-choreo aria-label="Team selector">
-            <div className="pill-group" title="American or National League">
-              <span className="pill-label">Circuit</span>
-              {["AL", "NL"].map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  className={`pill ${league === l ? "active" : ""}`}
-                  onClick={() => handleLeagueChange(l)}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            <div className="pill-separator" />
-            <div className="pill-group" title="East, Central, or West">
-              <span className="pill-label">Race</span>
-              {LEAGUE_DIVISIONS[league].map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  className={`pill ${division === d ? "active" : ""}`}
-                  onClick={() => handleDivisionChange(d)}
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-            <div className="pill-separator" />
-            <div className="pill-group" title="Your club">
-              <span className="pill-label">Club</span>
-              {divisionTeams.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`pill pill-team ${team === t ? "active" : ""}`}
-                  onClick={() => setTeam(t)}
-                  title={t}
-                >
-                  {getTeamAbbrev(t)}
-                </button>
-              ))}
-            </div>
-          </nav>
         </div>
         <div className="hero-sunset" aria-hidden="true" />
       </header>
@@ -165,7 +80,7 @@ export default function App() {
         {loading && (
           <div className="section-card loading-card scroll-choreo scroll-choreo--card" data-scroll-choreo>
             <p className="loading-primary">
-              Loading Statcast week buckets for {getTeamAbbrev(team)} ({season})…{" "}
+              Loading Statcast week buckets for {getTeamAbbrev(TEAM)} ({season})…{" "}
               <span className="loading-elapsed" aria-live="polite">
                 ({elapsed}s)
               </span>
@@ -198,10 +113,6 @@ export default function App() {
                   <span className="kpi-label">Record</span>
                 </div>
                 <div className="kpi-tile scroll-choreo scroll-choreo--kpi" data-scroll-choreo>
-                  <span className="kpi-value">{payload.division_place > 0 ? `${payload.division_place}${ordSuffix(payload.division_place)}` : "—"}</span>
-                  <span className="kpi-label">{payload.division || "Division"}</span>
-                </div>
-                <div className="kpi-tile scroll-choreo scroll-choreo--kpi" data-scroll-choreo>
                   <span className="kpi-value">{payload.streak || "—"}</span>
                   <span className="kpi-label">Streak</span>
                 </div>
@@ -217,9 +128,6 @@ export default function App() {
                   </div>
                   {payload.runs_per_game > 0 && (
                     <span className="section-header__stat">
-                      {payload.runs_per_game_rank > 0 && (
-                        <span className="section-header__stat-rank">{payload.runs_per_game_rank}{ordSuffix(payload.runs_per_game_rank)}</span>
-                      )}
                       <span className="section-header__stat-val">{payload.runs_per_game.toFixed(1)} R/G</span>
                     </span>
                   )}
@@ -234,8 +142,8 @@ export default function App() {
                 <OffenseSavantBars
                   weeks={payload.weeks}
                   teamLabel={payload.team}
-                  leagueShape={payload.offense_monthly_league_shape ?? []}
-                  leagueTeams={payload.league_offense_months_teams ?? 0}
+                  leagueShape={[]}
+                  leagueTeams={0}
                   chaseZoneGrid={payload.chase_zone_grid}
                   whiffZoneGrid={payload.whiff_zone_grid}
                   barrelGrid={payload.barrel_grid}
@@ -258,9 +166,6 @@ export default function App() {
                 </div>
                 {payload.runs_allowed_per_game > 0 && (
                   <span className="section-header__stat">
-                    {payload.runs_allowed_per_game_rank > 0 && (
-                      <span className="section-header__stat-rank">{payload.runs_allowed_per_game_rank}{ordSuffix(payload.runs_allowed_per_game_rank)}</span>
-                    )}
                     <span className="section-header__stat-val">{payload.runs_allowed_per_game.toFixed(1)} RA/G</span>
                   </span>
                 )}
@@ -268,8 +173,8 @@ export default function App() {
               <PitchingSavantBars
                 weeks={payload.weeks}
                 teamLabel={payload.team}
-                leagueShape={payload.offense_monthly_league_shape ?? []}
-                leagueTeams={payload.league_offense_months_teams ?? 0}
+                leagueShape={[]}
+                leagueTeams={0}
                 chaseZoneGrid={payload.pitching_chase_zone_grid}
                 whiffZoneGrid={payload.pitching_whiff_zone_grid}
                 barrelGrid={payload.pitching_barrel_grid}

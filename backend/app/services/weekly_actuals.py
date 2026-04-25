@@ -1,4 +1,4 @@
-"""Compose Statcast-backed weekly progression for the SPA."""
+"""Compose Statcast-backed weekly progression for the SPA (Blue Jays only)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from config import ALL_TEAMS, TEAM_ABBREVS, TEAM_TO_DIVISION
+from config import TEAM_ABBREVS
 
 from data_source.mlb_api import build_record, fetch_schedule, split_schedule
 from data_source.statcast_weekly import (
@@ -29,7 +29,6 @@ from ..schemas import (
     ChaseZoneCell,
     ChaseZoneGrid,
     ChaseZoneMonth,
-    OffenseMonthLeagueShape,
     PitchTypeRow,
     SprayCell,
     SprayGrid,
@@ -41,13 +40,13 @@ from ..schemas import (
     WhiffZoneGrid,
     WhiffZoneMonth,
 )
-from .league_offense_monthly import build_offense_monthly_league_shape
+
+FAVORITE_TEAM = "Toronto Blue Jays"
 
 
-def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = False) -> WeeklyActualsResponse:
-    favorite = team if team in ALL_TEAMS else "Toronto Blue Jays"
+def build_weekly_actuals_payload(*, season: int, team: str | None = None, skip_cache: bool = False) -> WeeklyActualsResponse:
+    favorite = FAVORITE_TEAM
     abbrev = TEAM_ABBREVS[favorite]
-    division = TEAM_TO_DIVISION.get(favorite, "")
 
     # Check disk cache first for instant response
     if not skip_cache:
@@ -84,7 +83,6 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
             season=season,
             team=favorite,
             team_abbrev=abbrev,
-            division=division,
             wins=rec["w"],
             losses=rec["l"],
             weeks=[],
@@ -92,21 +90,9 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
             data_through=None,
             generated_at=datetime.now(timezone.utc).isoformat(),
             note=note or "No Statcast rows returned for this club and season yet.",
-            offense_monthly_league_shape=[],
-            league_offense_months_teams=0,
         )
 
     raw_weeks = build_weekly_frames(df, abbrev)
-    shape_rows, league_teams = build_offense_monthly_league_shape(
-        season=season, focal_abbrev=abbrev, focal_raw_weeks=raw_weeks
-    )
-    league_shape = [OffenseMonthLeagueShape(**r) for r in shape_rows]
-    if league_teams < 10:
-        extra = (
-            f"League ranks used {league_teams} club(s) with local Statcast for {season}; "
-            "more team extracts under STATCAST_LOCAL_DIR improve comparison spread."
-        )
-        note = f"{note} {extra}".strip() if note else extra
 
     buckets: list[WeeklyBucket] = []
     for w in raw_weeks:
@@ -122,11 +108,8 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
             )
         )
 
-    # Compute runs per game scored / allowed + league rank
     runs_scored = 0.0
     runs_allowed = 0.0
-    runs_scored_rank = 0
-    runs_allowed_rank = 0
     games_played = 0
 
     def _rpg(frame: pd.DataFrame, team: str) -> tuple[float, float, int]:
@@ -152,32 +135,11 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
 
     try:
         runs_scored, runs_allowed, games_played = _rpg(df, abbrev)
-
-        # League ranking: compute RPG for all teams with local Statcast
-        all_rs: list[float] = []
-        all_ra: list[float] = []
-        for ab in sorted(set(TEAM_ABBREVS.values())):
-            if ab == abbrev:
-                all_rs.append(runs_scored)
-                all_ra.append(runs_allowed)
-                continue
-            tdf = try_load_statcast_local(ab, season)
-            if tdf is not None and len(tdf) > 0:
-                rs, ra, _ = _rpg(tdf, ab)
-                if rs > 0 or ra > 0:
-                    all_rs.append(rs)
-                    all_ra.append(ra)
-
-        # Rank: 1 = most runs scored (best offense), 1 = fewest runs allowed (best defense)
-        runs_scored_rank = sum(1 for x in all_rs if x > runs_scored) + 1
-        runs_allowed_rank = sum(1 for x in all_ra if x < runs_allowed) + 1
     except Exception:
         pass
 
-    # Run differential (total, not per game)
     run_diff = int(round(runs_scored * games_played - runs_allowed * games_played)) if games_played else 0
 
-    # Streak: consecutive W or L from most recent games
     streak_str = ""
     try:
         _gms = df.groupby("game_pk").agg(
@@ -204,28 +166,6 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
     except Exception:
         pass
 
-    # Division standing: rank within division by wins
-    div_place = 0
-    try:
-        div_teams = [t for t, d in TEAM_TO_DIVISION.items() if d == division]
-        div_records: list[tuple[int, str]] = [(rec["w"], abbrev)]
-        for dt in div_teams:
-            dt_ab = TEAM_ABBREVS.get(dt)
-            if not dt_ab or dt_ab == abbrev:
-                continue
-            tdf = try_load_statcast_local(dt_ab, season)
-            if tdf is not None and len(tdf) > 0:
-                from data_source.statcast_weekly import build_team_record_from_statcast as _btr
-                dt_rec = _btr(tdf, dt_ab)
-                div_records.append((dt_rec["w"], dt_ab))
-        div_records.sort(key=lambda x: -x[0])
-        for i, (w, ab_) in enumerate(div_records):
-            if ab_ == abbrev:
-                div_place = i + 1
-                break
-    except Exception:
-        pass
-
     data_through: str | None = None
     if "game_date" in df.columns:
         try:
@@ -236,7 +176,6 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
         except Exception:
             data_through = None
 
-    # Chase-zone spatial grid for heatmap
     raw_grid = build_chase_zone_grid(df)
     chase_grid: ChaseZoneGrid | None = None
     if raw_grid:
@@ -257,7 +196,6 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
             ],
         )
 
-    # Whiff-zone spatial grid
     raw_whiff = build_whiff_zone_grid(df)
     whiff_grid: WhiffZoneGrid | None = None
     if raw_whiff:
@@ -268,7 +206,6 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
             months=[WhiffZoneMonth(month=m["month"], cells=[WhiffZoneCell(**c) for c in m["cells"]]) for m in raw_whiff["months"]],
         )
 
-    # Barrel EV×LA grid
     raw_barrel = build_barrel_grid(df)
     brl_grid: BarrelGrid | None = None
     if raw_barrel:
@@ -278,7 +215,6 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
             months=[BarrelMonth(month=m["month"], cells=[BarrelCell(**c) for c in m["cells"]]) for m in raw_barrel["months"]],
         )
 
-    # Spray-chart xwOBA grid
     raw_spray = build_spray_xwoba_grid(df)
     spr_grid: SprayGrid | None = None
     if raw_spray:
@@ -288,15 +224,8 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
             months=[SprayMonth(month=m["month"], cells=[SprayCell(**c) for c in m["cells"]]) for m in raw_spray["months"]],
         )
 
-    # Pitching/defense grids (same builders, filtered to defense rows)
     df_roles = _add_roles(df, abbrev)
     df_def = df_roles.loc[df_roles["defense_row"]]
-
-    def _build_grid(builder, raw):
-        """Helper to convert raw grid dict to the appropriate schema."""
-        if raw is None:
-            return None
-        return raw  # Return raw dict, will be converted below
 
     p_chase_raw = build_chase_zone_grid(df_def) if len(df_def) > 50 else None
     p_whiff_raw = build_whiff_zone_grid(df_def) if len(df_def) > 50 else None
@@ -333,23 +262,17 @@ def build_weekly_actuals_payload(*, season: int, team: str, skip_cache: bool = F
         season=season,
         team=favorite,
         team_abbrev=abbrev,
-        division=division,
         wins=rec["w"],
         losses=rec["l"],
         runs_per_game=runs_scored,
         runs_allowed_per_game=runs_allowed,
-        runs_per_game_rank=runs_scored_rank,
-        runs_allowed_per_game_rank=runs_allowed_rank,
         run_differential=run_diff,
-        division_place=div_place,
         streak=streak_str,
         weeks=buckets,
         statcast_rows=len(df),
         data_through=data_through,
         generated_at=datetime.now(timezone.utc).isoformat(),
         note=note,
-        offense_monthly_league_shape=league_shape,
-        league_offense_months_teams=league_teams,
         chase_zone_grid=chase_grid,
         whiff_zone_grid=whiff_grid,
         barrel_grid=brl_grid,

@@ -2,10 +2,6 @@ fastapi
 uvicorn[standard]
 pandas
 numpy
-scipy<1.13
-PyMC
-arviz
-xarray
 MLB-StatsAPI
 pybaseball
 requests

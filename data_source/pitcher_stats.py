@@ -11,11 +11,11 @@ from typing import Optional
 import numpy as np
 import statsapi
 
-from config import POSTERIOR_CACHE_DIR
+from config import APP_CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
-_PITCHER_CACHE_DIR = POSTERIOR_CACHE_DIR.parent / "pitcher_stats"
+_PITCHER_CACHE_DIR = APP_CACHE_DIR / "pitcher_stats"
 _MIN_IP_FOR_QUALITY = 20.0
 _BATCH_SIZE = 40
 

@@ -4,8 +4,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-export SKIP_DASHBOARD_WARMUP="${SKIP_DASHBOARD_WARMUP:-1}"
-
 if lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
   if curl -4 -sf --max-time 2 "http://127.0.0.1:8000/api/health" >/dev/null; then
     echo "Port 8000 already in use — API looks healthy. Starting Vite only."

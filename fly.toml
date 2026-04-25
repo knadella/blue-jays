@@ -12,7 +12,7 @@ primary_region = "iad"
   dockerfile = "Dockerfile"
 
 [env]
-  POSTERIOR_CACHE_DIR = "/data/posteriors"
+  APP_CACHE_DIR = "/data"
   STATCAST_CACHE_DIR = "/data/statcast_frames"
   WEEKLY_CACHE_DIR = "/data/weekly_cache"
   STATCAST_LOCAL_DIR = "/data/statcast_local"
@@ -25,8 +25,7 @@ primary_region = "iad"
   min_machines_running = 1
 
   [http_service.http_options]
-    # Fly caps this at 900s; longer refits need a different pattern (e.g. SSH/cron on the machine).
-    idle_timeout = 900
+    idle_timeout = 60
 
   [[http_service.checks]]
     interval = "30s"

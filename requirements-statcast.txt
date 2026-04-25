@@ -1,7 +1,0 @@
-# Legacy Statcast analysis stack (etl/, api/, web/) — install only if you use that tree
-pybaseball==2.2.5
-pandas==2.1.4
-sqlalchemy==2.0.23
-fastapi==0.104.1
-uvicorn==0.24.0
-python-dotenv==1.0.0
