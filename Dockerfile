@@ -20,9 +20,10 @@ COPY config.py .
 COPY data_source ./data_source
 COPY backend ./backend
 COPY data/statcast_local ./data/statcast_local
+COPY data/win_expectancy ./data/win_expectancy
 
 # Ephemeral cache dirs (overridden when a Fly volume is mounted at /data)
-RUN mkdir -p .cache/statcast_frames .cache/weekly_cache .cache/pitcher_stats
+RUN mkdir -p .cache/statcast_frames .cache/weekly_cache .cache/pitcher_stats .cache/game_wpa
 
 EXPOSE 8000
 

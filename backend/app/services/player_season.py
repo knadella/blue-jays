@@ -20,14 +20,15 @@ from typing import Any
 
 import statsapi  # type: ignore[import-untyped]
 
+from config import APP_CACHE_DIR
+
 from ..schemas import BatterCard, GameRef, PitcherCard, PlayersResponse
 from .wpa import compute_wpa_for_game
 
 logger = logging.getLogger(__name__)
 
 JAYS_TEAM_ID = 141
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_CACHE_DIR = _REPO_ROOT / ".cache" / "game_wpa"
+_CACHE_DIR: Path = APP_CACHE_DIR / "game_wpa"
 
 
 def _cache_path(game_pk: int) -> Path:
