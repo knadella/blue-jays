@@ -17,8 +17,9 @@ from config import (
     TEAM_ABBREVS,
 )
 
-from .schemas import RefreshResponse, TodayResponse
+from .schemas import PlayersResponse, RefreshResponse, TodayResponse
 from .services.game_story import build_today_payload
+from .services.player_season import build_players_payload
 from .services.weekly_actuals import build_weekly_actuals_payload
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,12 @@ def today() -> TodayResponse:
     if payload is None:
         raise HTTPException(status_code=404, detail="No recent Final Blue Jays game found")
     return payload
+
+
+@app.get("/api/players", response_model=PlayersResponse)
+def players(season: int = Query(DEFAULT_SEASON, ge=2000, le=2100)) -> PlayersResponse:
+    """Season-long net WPA contribution per Blue Jays player."""
+    return build_players_payload(season)
 
 
 @app.get("/api/weekly-actuals")

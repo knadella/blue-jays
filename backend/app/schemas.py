@@ -256,3 +256,48 @@ class TodayResponse(BaseModel):
     opp_starter: Optional[PitcherLine] = None
     we_table_meta: dict
     generated_at: str
+
+
+# ---------------------------------------------------------------------------
+# Players (season-long net contribution)
+# ---------------------------------------------------------------------------
+
+
+class GameRef(BaseModel):
+    game_pk: int
+    game_date: str
+    opp_abbr: str
+    jays_won: bool
+    wpa: float
+
+
+class BatterCard(BaseModel):
+    player_id: int
+    name: str
+    wpa: float
+    games: int
+    pa: int
+    rbi: int = 0
+    best_game: Optional[GameRef] = None
+    worst_game: Optional[GameRef] = None
+
+
+class PitcherCard(BaseModel):
+    player_id: int
+    name: str
+    wpa: float
+    games: int
+    starts: int = 0
+    bf: int = 0
+    pitches: int = 0
+    best_game: Optional[GameRef] = None
+    worst_game: Optional[GameRef] = None
+
+
+class PlayersResponse(BaseModel):
+    season: int
+    games_included: int
+    last_game_date: Optional[str] = None
+    batters: list[BatterCard] = Field(default_factory=list)
+    pitchers: list[PitcherCard] = Field(default_factory=list)
+    generated_at: str

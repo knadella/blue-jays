@@ -1882,3 +1882,241 @@ body {
   letter-spacing: 0.04em;
   padding: 12px 0 4px;
 }
+
+/* ============================================================
+   Tab bar (bottom nav) + Players view
+   ============================================================ */
+
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--card);
+  border-top: 1px solid var(--card-border);
+  box-shadow: 0 -2px 12px rgba(26, 26, 46, 0.04);
+  z-index: 10;
+  padding: 4px env(safe-area-inset-right) calc(4px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+}
+
+.tab-bar__btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 12px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.tab-bar__btn:hover {
+  color: var(--ink-soft);
+}
+
+.tab-bar__btn--active {
+  color: var(--accent);
+}
+
+.today-shell {
+  padding-bottom: 72px;
+}
+
+/* ----- Players: header summary + side toggle ----- */
+
+.p-summary {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.p-summary__games {
+  font-weight: 600;
+  font-feature-settings: "tnum";
+}
+
+.p-summary__last {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.p-toggle {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  gap: 2px;
+}
+
+.p-toggle__btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.p-toggle__btn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ----- Player cards ----- */
+
+.p-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.p-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.p-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.p-card__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.p-card__wpa {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+.p-card__wpa--pos {
+  color: var(--green);
+}
+
+.p-card__wpa--neg {
+  color: #b13a3a;
+}
+
+.p-card__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  font-feature-settings: "tnum";
+}
+
+.p-card__refs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ----- WPA bar (centered, signed) ----- */
+
+.p-bar {
+  position: relative;
+  height: 6px;
+  background: var(--card-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.p-bar__center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(26, 26, 46, 0.18);
+}
+
+.p-bar__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+}
+
+.p-bar__fill--pos {
+  background: var(--green);
+}
+
+.p-bar__fill--neg {
+  background: #b13a3a;
+}
+
+/* ----- Game ref chip (best / worst game) ----- */
+
+.p-ref {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--canvas);
+  border: 1px solid var(--card-border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-feature-settings: "tnum";
+}
+
+.p-ref__label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.p-ref__opp {
+  color: var(--ink-soft);
+}
+
+.p-ref__date {
+  color: var(--muted-light);
+}
+
+.p-ref__wpa {
+  font-weight: 700;
+}
+
+.p-ref--pos .p-ref__wpa {
+  color: var(--green);
+}
+
+.p-ref--neg .p-ref__wpa {
+  color: #b13a3a;
+}
+
+.t-loading__elapsed {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-light);
+}

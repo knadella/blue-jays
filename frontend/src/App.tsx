@@ -1,8 +1,59 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { fetchToday, type LeveragePlay, type Contributor, type PitcherLine, type TodayResponse, type WEPoint } from "./api";
+import {
+  fetchPlayers,
+  fetchToday,
+  type BatterCard,
+  type Contributor,
+  type GameRef,
+  type LeveragePlay,
+  type PitcherCard,
+  type PitcherLine,
+  type PlayersResponse,
+  type TodayResponse,
+  type WEPoint,
+} from "./api";
+
+const DEFAULT_SEASON = Number(import.meta.env.VITE_MLB_SEASON) || 2026;
+
+type Tab = "today" | "players";
 
 export default function App() {
+  const [tab, setTab] = useState<Tab>("today");
+
+  return (
+    <div className="today-root">
+      <div className="today-shell">
+        {tab === "today" && <TodayTab />}
+        {tab === "players" && <PlayersTab />}
+      </div>
+      <nav className="tab-bar" role="tablist">
+        <button
+          className={`tab-bar__btn ${tab === "today" ? "tab-bar__btn--active" : ""}`}
+          onClick={() => setTab("today")}
+          role="tab"
+          aria-selected={tab === "today"}
+        >
+          Today
+        </button>
+        <button
+          className={`tab-bar__btn ${tab === "players" ? "tab-bar__btn--active" : ""}`}
+          onClick={() => setTab("players")}
+          role="tab"
+          aria-selected={tab === "players"}
+        >
+          Players
+        </button>
+      </nav>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Today
+// ---------------------------------------------------------------------------
+
+function TodayTab() {
   const [payload, setPayload] = useState<TodayResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,15 +73,10 @@ export default function App() {
     return () => controller.abort();
   }, []);
 
-  return (
-    <div className="today-root">
-      <div className="today-shell">
-        {loading && <div className="t-card t-loading">Loading…</div>}
-        {error && <div className="t-card t-error">{error}</div>}
-        {payload && !loading && <Today payload={payload} />}
-      </div>
-    </div>
-  );
+  if (loading) return <div className="t-card t-loading">Loading…</div>;
+  if (error) return <div className="t-card t-error">{error}</div>;
+  if (!payload) return null;
+  return <Today payload={payload} />;
 }
 
 function Today({ payload }: { payload: TodayResponse }) {
@@ -142,7 +188,6 @@ function ScoreSide({
 }
 
 function WPSparkline({ trajectory }: { trajectory: WEPoint[] }) {
-  // Compact, mobile-first SVG sparkline.
   const W = 320;
   const H = 96;
   const pad = { l: 4, r: 4, t: 4, b: 14 };
@@ -150,7 +195,8 @@ function WPSparkline({ trajectory }: { trajectory: WEPoint[] }) {
   const innerH = H - pad.t - pad.b;
 
   const { path, fill, gridLines, ticks } = useMemo(() => {
-    if (trajectory.length === 0) return { path: "", fill: "", gridLines: [] as number[], ticks: [] as { x: number; label: string }[] };
+    if (trajectory.length === 0)
+      return { path: "", fill: "", gridLines: [] as number[], ticks: [] as { x: number; label: string }[] };
     const n = trajectory.length;
     const xOf = (i: number) => pad.l + (innerW * i) / Math.max(1, n - 1);
     const yOf = (we: number) => pad.t + innerH * (1 - we);
@@ -159,7 +205,6 @@ function WPSparkline({ trajectory }: { trajectory: WEPoint[] }) {
     for (let i = 1; i < n; i++) {
       d += ` L ${xOf(i)} ${yOf(trajectory[i].we_jays)}`;
     }
-    // Fill area to baseline 0.5 (split good/bad)
     const baseline = yOf(0.5);
     let fillD = `M ${xOf(0)} ${baseline}`;
     for (let i = 0; i < n; i++) {
@@ -167,7 +212,6 @@ function WPSparkline({ trajectory }: { trajectory: WEPoint[] }) {
     }
     fillD += ` L ${xOf(n - 1)} ${baseline} Z`;
 
-    // Inning ticks: first index of each new inning
     const seen = new Set<string>();
     const ticks: { x: number; label: string }[] = [];
     trajectory.forEach((p, i) => {
@@ -177,7 +221,6 @@ function WPSparkline({ trajectory }: { trajectory: WEPoint[] }) {
         ticks.push({ x: xOf(i), label: k });
       }
     });
-    // Show every other tick to avoid crowding
     const reduced = ticks.filter((_, idx) => idx % 2 === 0);
     return { path: d, fill: fillD, gridLines: [0.5], ticks: reduced };
   }, [trajectory]);
@@ -191,7 +234,6 @@ function WPSparkline({ trajectory }: { trajectory: WEPoint[] }) {
       role="img"
       aria-label="Win expectancy trajectory"
     >
-      {/* baseline */}
       {gridLines.map((g) => (
         <line
           key={g}
@@ -218,9 +260,13 @@ function LeverageRow({ play }: { play: LeveragePlay }) {
   return (
     <li className="t-lev">
       <div className="t-lev__head">
-        <span className="t-lev__inn">{play.half}{play.inning}</span>
+        <span className="t-lev__inn">
+          {play.half}
+          {play.inning}
+        </span>
         <span className={`t-lev__wpa t-lev__wpa--${play.wpa_jays >= 0 ? "pos" : "neg"}`}>
-          {sign}{Math.abs(play.wpa_jays).toFixed(3)}
+          {sign}
+          {Math.abs(play.wpa_jays).toFixed(3)}
         </span>
         <span className="t-lev__score">{play.score_before}</span>
       </div>
@@ -237,7 +283,8 @@ function ContribRow({ c, positive }: { c: Contributor; positive: boolean }) {
       <div className="t-contrib__head">
         <span className="t-contrib__name">{c.name}</span>
         <span className={`t-contrib__wpa t-contrib__wpa--${positive ? "pos" : "neg"}`}>
-          {sign}{c.wpa.toFixed(3)}
+          {sign}
+          {c.wpa.toFixed(3)}
         </span>
       </div>
       <div className="t-contrib__meta">
@@ -259,5 +306,175 @@ function PitcherRow({ p, role }: { p: PitcherLine; role: "starter" | "relief" })
       </div>
       {p.note && <div className="t-pitcher__note">{p.note}</div>}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Players
+// ---------------------------------------------------------------------------
+
+function PlayersTab() {
+  const [payload, setPayload] = useState<PlayersResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [elapsed, setElapsed] = useState(0);
+  const [side, setSide] = useState<"batters" | "pitchers">("batters");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const t0 = Date.now();
+    const tick = window.setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    setLoading(true);
+    setError(null);
+    fetchPlayers(DEFAULT_SEASON, controller.signal)
+      .then((d) => setPayload(d))
+      .catch((err: Error) => {
+        if (err.name !== "AbortError") setError(err.message || String(err));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          window.clearInterval(tick);
+        }
+      });
+    return () => {
+      controller.abort();
+      window.clearInterval(tick);
+    };
+  }, []);
+
+  if (loading)
+    return (
+      <div className="t-card t-loading">
+        Loading season…{" "}
+        <span className="t-loading__elapsed" aria-live="polite">
+          ({elapsed}s)
+        </span>
+      </div>
+    );
+  if (error) return <div className="t-card t-error">{error}</div>;
+  if (!payload) return null;
+
+  const batters = payload.batters;
+  const pitchers = payload.pitchers;
+  const showBatters = side === "batters";
+  const list = showBatters ? batters : pitchers;
+  const maxAbs = Math.max(0.001, ...list.map((p) => Math.abs(p.wpa)));
+
+  return (
+    <>
+      <header className="t-header">
+        <div className="t-header__date">Season {payload.season}</div>
+        <div className="p-summary">
+          <span className="p-summary__games">{payload.games_included} games</span>
+          {payload.last_game_date && (
+            <span className="p-summary__last">through {payload.last_game_date}</span>
+          )}
+        </div>
+      </header>
+
+      <div className="p-toggle" role="tablist">
+        <button
+          className={`p-toggle__btn ${showBatters ? "p-toggle__btn--active" : ""}`}
+          onClick={() => setSide("batters")}
+          role="tab"
+          aria-selected={showBatters}
+        >
+          Batters ({batters.length})
+        </button>
+        <button
+          className={`p-toggle__btn ${!showBatters ? "p-toggle__btn--active" : ""}`}
+          onClick={() => setSide("pitchers")}
+          role="tab"
+          aria-selected={!showBatters}
+        >
+          Pitchers ({pitchers.length})
+        </button>
+      </div>
+
+      <ul className="p-list">
+        {showBatters
+          ? batters.map((b) => <BatterCardRow key={b.player_id} c={b} maxAbs={maxAbs} />)
+          : pitchers.map((p) => <PitcherCardRow key={p.player_id} c={p} maxAbs={maxAbs} />)}
+      </ul>
+    </>
+  );
+}
+
+function WpaBar({ wpa, maxAbs }: { wpa: number; maxAbs: number }) {
+  const pct = (Math.abs(wpa) / maxAbs) * 50; // 0..50% from center
+  const left = wpa >= 0 ? 50 : 50 - pct;
+  return (
+    <div className="p-bar" aria-hidden="true">
+      <div className="p-bar__center" />
+      <div
+        className={`p-bar__fill p-bar__fill--${wpa >= 0 ? "pos" : "neg"}`}
+        style={{ left: `${left}%`, width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+function GameRefChip({ g, label }: { g: GameRef; label: string }) {
+  const sign = g.wpa >= 0 ? "+" : "−";
+  return (
+    <span className={`p-ref p-ref--${g.wpa >= 0 ? "pos" : "neg"}`}>
+      <span className="p-ref__label">{label}</span>
+      <span className="p-ref__opp">
+        {g.jays_won ? "W" : "L"} vs {g.opp_abbr}
+      </span>
+      <span className="p-ref__date">{g.game_date.slice(5)}</span>
+      <span className="p-ref__wpa">
+        {sign}
+        {Math.abs(g.wpa).toFixed(2)}
+      </span>
+    </span>
+  );
+}
+
+function BatterCardRow({ c, maxAbs }: { c: BatterCard; maxAbs: number }) {
+  const sign = c.wpa >= 0 ? "+" : "−";
+  return (
+    <li className="p-card">
+      <div className="p-card__head">
+        <span className="p-card__name">{c.name}</span>
+        <span className={`p-card__wpa p-card__wpa--${c.wpa >= 0 ? "pos" : "neg"}`}>
+          {sign}
+          {Math.abs(c.wpa).toFixed(3)}
+        </span>
+      </div>
+      <WpaBar wpa={c.wpa} maxAbs={maxAbs} />
+      <div className="p-card__meta">
+        G {c.games} · PA {c.pa} · RBI {c.rbi}
+      </div>
+      <div className="p-card__refs">
+        {c.best_game && <GameRefChip g={c.best_game} label="best" />}
+        {c.worst_game && <GameRefChip g={c.worst_game} label="worst" />}
+      </div>
+    </li>
+  );
+}
+
+function PitcherCardRow({ c, maxAbs }: { c: PitcherCard; maxAbs: number }) {
+  const sign = c.wpa >= 0 ? "+" : "−";
+  return (
+    <li className="p-card">
+      <div className="p-card__head">
+        <span className="p-card__name">{c.name}</span>
+        <span className={`p-card__wpa p-card__wpa--${c.wpa >= 0 ? "pos" : "neg"}`}>
+          {sign}
+          {Math.abs(c.wpa).toFixed(3)}
+        </span>
+      </div>
+      <WpaBar wpa={c.wpa} maxAbs={maxAbs} />
+      <div className="p-card__meta">
+        G {c.games}
+        {c.starts > 0 && ` · ${c.starts} starts`} · BF {c.bf} · {c.pitches}p
+      </div>
+      <div className="p-card__refs">
+        {c.best_game && <GameRefChip g={c.best_game} label="best" />}
+        {c.worst_game && <GameRefChip g={c.worst_game} label="worst" />}
+      </div>
+    </li>
   );
 }

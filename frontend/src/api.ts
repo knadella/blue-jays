@@ -103,3 +103,57 @@ export async function fetchToday(signal?: AbortSignal): Promise<TodayResponse> {
   }
   return response.json();
 }
+
+
+// ---------------------------------------------------------------------------
+// Players (season-long net contribution)
+// ---------------------------------------------------------------------------
+
+export interface GameRef {
+  game_pk: number;
+  game_date: string;
+  opp_abbr: string;
+  jays_won: boolean;
+  wpa: number;
+}
+
+export interface BatterCard {
+  player_id: number;
+  name: string;
+  wpa: number;
+  games: number;
+  pa: number;
+  rbi: number;
+  best_game: GameRef | null;
+  worst_game: GameRef | null;
+}
+
+export interface PitcherCard {
+  player_id: number;
+  name: string;
+  wpa: number;
+  games: number;
+  starts: number;
+  bf: number;
+  pitches: number;
+  best_game: GameRef | null;
+  worst_game: GameRef | null;
+}
+
+export interface PlayersResponse {
+  season: number;
+  games_included: number;
+  last_game_date: string | null;
+  batters: BatterCard[];
+  pitchers: PitcherCard[];
+  generated_at: string;
+}
+
+export async function fetchPlayers(season: number, signal?: AbortSignal): Promise<PlayersResponse> {
+  const url = `${API_BASE}/api/players?season=${season}`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Players HTTP ${response.status}. Is the API running on 127.0.0.1:8000?`);
+  }
+  return response.json();
+}
