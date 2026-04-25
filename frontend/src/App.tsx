@@ -42,7 +42,7 @@ export default function App() {
           role="tab"
           aria-selected={tab === "players"}
         >
-          Players
+          Season players
         </button>
       </nav>
     </div>
