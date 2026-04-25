@@ -1,0 +1,47 @@
+==============================================================================
+BLUE JAYS GAME STORY  |  2026-04-24  |  Rogers Centre
+Cleveland Guardians (CLE) 8  @  Toronto Blue Jays (TOR) 6
+Toronto: LOSS  (6-8)
+WE table: 8041 states from seasons [2021, 2022, 2023, 2024]
+==============================================================================
+
+--- TOP LEVERAGE PLAYS (by |WPA|) --------------------------------------------
+   T1  WPA(TOR)=-0.176  WE bat: 0.56 -> 0.74  (CLE 1-0 TOR)
+        George Valera doubles (3) on a line drive to right fielder Nathan Lukes. José Ramírez scores. Rhys Hoskins sc…
+   B9  WPA(TOR)=-0.135  WE bat: 0.21 -> 0.07  (CLE 8-6 TOR)
+        Eloy Jiménez grounds into a double play, third baseman José Ramírez to second baseman Daniel Schneemann to fi…
+   T1  WPA(TOR)=-0.128  WE bat: 0.47 -> 0.60  (CLE 0-0 TOR)
+        Daniel Schneemann homers (3) on a fly ball to right field
+   T3  WPA(TOR)=-0.127  WE bat: 0.74 -> 0.86  (CLE 5-3 TOR)
+        Angel Martínez homers (5) on a fly ball to right center field. Rhys Hoskins scores
+   B6  WPA(TOR)=+0.124  WE bat: 0.09 -> 0.21  (CLE 8-4 TOR)
+        Andrés Giménez doubles (5) on a fly ball to left fielder George Valera. Lenyn Sosa scores. Kazuma Okamoto sco…
+
+--- BLUE JAYS — TOP CONTRIBUTORS (sum WPA) -----------------------------------
+  Kazuma Okamoto           WPA=+0.244  RBI=1  PA=4
+        best (+0.101 I2): Kazuma Okamoto homers (4) on a fly ball to center field
+  Andrés Giménez           WPA=+0.175  RBI=2  PA=4
+        best (+0.124 I6): Andrés Giménez doubles (5) on a fly ball to left fielder George Valera. Lenyn S…
+  Jesús Sánchez            WPA=+0.074  RBI=1  PA=3
+        best (+0.103 I1): Jesús Sánchez homers (3) on a fly ball to center field
+
+--- BLUE JAYS — NEGATIVE CONTRIBUTORS (sum WPA) ------------------------------
+  Vladimir Guerrero Jr.    WPA=-0.147  RBI=1  PA=4
+        worst (-0.112 I1): Vladimir Guerrero Jr. grounds out, shortstop Brayan Rocchio to first baseman Ky…
+  Eloy Jiménez             WPA=-0.135  RBI=0  PA=1
+        worst (-0.135 I9): Eloy Jiménez grounds into a double play, third baseman José Ramírez to second b…
+  Davis Schneider          WPA=-0.133  RBI=0  PA=4
+        worst (-0.073 I9): Davis Schneider pops out to second baseman Daniel Schneemann
+
+--- BLUE JAYS PITCHING -------------------------------------------------------
+  STARTER  Max Scherzer: 2.1 IP, 6 H, 7 R, 7 ER, 0 K, 3 BB, 82 pitches (L, 1-3)
+  RELIEF   Joe Mantiply           1.2 IP, 2 H, 0 R, 0 ER, 1 K, 0 BB, 19 P
+  RELIEF   Spencer Miles          2.0 IP, 2 H, 1 R, 1 ER, 2 K, 0 BB, 28 P
+  RELIEF   Tommy Nance            1.0 IP, 0 H, 0 R, 0 ER, 3 K, 0 BB, 13 P
+  RELIEF   Mason Fluharty         1.0 IP, 0 H, 0 R, 0 ER, 2 K, 0 BB, 13 P
+  RELIEF   Braydon Fisher         1.0 IP, 0 H, 0 R, 0 ER, 0 K, 1 BB, 14 P
+  Bullpen workload: 5 relievers, 87 total pitches
+
+  (Opp starter Gavin Williams: 6.0 IP, 7 H, 6 ER, 4 K)
+
+==============================================================================
