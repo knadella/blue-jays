@@ -2120,3 +2120,100 @@ body {
   font-size: 11px;
   color: var(--muted-light);
 }
+
+/* ============================================================
+   Desktop layout (>= 720px)
+   ============================================================ */
+
+.t-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.t-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (min-width: 720px) {
+  .today-shell {
+    max-width: 960px;
+    padding: 28px 24px 96px;
+    gap: 18px;
+  }
+
+  .t-header {
+    padding: 4px 4px 8px;
+  }
+
+  .t-side__score {
+    font-size: 36px;
+  }
+
+  /* Tab bar: top, full-width, sticky */
+  .tab-bar {
+    position: sticky;
+    top: 0;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    margin: 0 auto 12px;
+    max-width: 960px;
+    border-top: none;
+    border-bottom: 1px solid var(--card-border);
+    box-shadow: 0 2px 12px rgba(26, 26, 46, 0.04);
+    background: var(--card);
+    border-radius: var(--radius-md);
+    padding: 4px;
+  }
+
+  .tab-bar__btn {
+    padding: 10px 0;
+    border-radius: calc(var(--radius-md) - 4px);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .tab-bar__btn--active {
+    background: var(--accent-soft);
+  }
+
+  .today-root {
+    padding-top: 16px;
+  }
+
+  /* Today: 2-column on desktop. Left = narrative, right = breakdowns. */
+  .t-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+  }
+
+  /* Sparkline gets more vertical room when given a wider half-column */
+  .t-spark {
+    height: 140px;
+  }
+
+  /* Season players: 2-column grid */
+  .p-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1080px) {
+  .today-shell {
+    max-width: 1080px;
+  }
+  .tab-bar {
+    max-width: 1080px;
+  }
+
+  /* Three columns of player cards on very wide screens */
+  .p-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

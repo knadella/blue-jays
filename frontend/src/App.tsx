@@ -23,10 +23,6 @@ export default function App() {
 
   return (
     <div className="today-root">
-      <div className="today-shell">
-        {tab === "today" && <TodayTab />}
-        {tab === "players" && <PlayersTab />}
-      </div>
       <nav className="tab-bar" role="tablist">
         <button
           className={`tab-bar__btn ${tab === "today" ? "tab-bar__btn--active" : ""}`}
@@ -45,6 +41,10 @@ export default function App() {
           Season players
         </button>
       </nav>
+      <div className="today-shell">
+        {tab === "today" && <TodayTab />}
+        {tab === "players" && <PlayersTab />}
+      </div>
     </div>
   );
 }
@@ -105,60 +105,66 @@ function Today({ payload }: { payload: TodayResponse }) {
         <div className="t-header__venue">{h.venue}</div>
       </header>
 
-      <section className="t-card">
-        <h2 className="t-card__title">Win expectancy (Toronto)</h2>
-        <WPSparkline trajectory={payload.we_trajectory} />
-      </section>
+      <div className="t-grid">
+        <div className="t-col t-col--left">
+          <section className="t-card">
+            <h2 className="t-card__title">Win expectancy (Toronto)</h2>
+            <WPSparkline trajectory={payload.we_trajectory} />
+          </section>
 
-      <section className="t-card">
-        <h2 className="t-card__title">Top leverage plays</h2>
-        <ul className="t-leverage">
-          {payload.leverage_plays.map((p) => (
-            <LeverageRow key={p.play_index} play={p} />
-          ))}
-        </ul>
-      </section>
+          <section className="t-card">
+            <h2 className="t-card__title">Top leverage plays</h2>
+            <ul className="t-leverage">
+              {payload.leverage_plays.map((p) => (
+                <LeverageRow key={p.play_index} play={p} />
+              ))}
+            </ul>
+          </section>
+        </div>
 
-      {payload.top_contributors.length > 0 && (
-        <section className="t-card">
-          <h2 className="t-card__title">Top contributors</h2>
-          <ul className="t-contribs">
-            {payload.top_contributors.map((c) => (
-              <ContribRow key={c.player_id} c={c} positive />
+        <div className="t-col t-col--right">
+          {payload.top_contributors.length > 0 && (
+            <section className="t-card">
+              <h2 className="t-card__title">Top contributors</h2>
+              <ul className="t-contribs">
+                {payload.top_contributors.map((c) => (
+                  <ContribRow key={c.player_id} c={c} positive />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {payload.negative_contributors.length > 0 && (
+            <section className="t-card">
+              <h2 className="t-card__title">Negative contributors</h2>
+              <ul className="t-contribs">
+                {payload.negative_contributors.map((c) => (
+                  <ContribRow key={c.player_id} c={c} positive={false} />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section className="t-card">
+            <h2 className="t-card__title">Pitching</h2>
+            {payload.starter && <PitcherRow p={payload.starter} role="starter" />}
+            {payload.relievers.map((p) => (
+              <PitcherRow key={p.player_id} p={p} role="relief" />
             ))}
-          </ul>
-        </section>
-      )}
-
-      {payload.negative_contributors.length > 0 && (
-        <section className="t-card">
-          <h2 className="t-card__title">Negative contributors</h2>
-          <ul className="t-contribs">
-            {payload.negative_contributors.map((c) => (
-              <ContribRow key={c.player_id} c={c} positive={false} />
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="t-card">
-        <h2 className="t-card__title">Pitching</h2>
-        {payload.starter && <PitcherRow p={payload.starter} role="starter" />}
-        {payload.relievers.map((p) => (
-          <PitcherRow key={p.player_id} p={p} role="relief" />
-        ))}
-        {payload.relievers.length > 0 && (
-          <div className="t-bullpen-total">
-            Bullpen: {payload.relievers.length} · {payload.bullpen_pitches} pitches
-          </div>
-        )}
-        {payload.opp_starter && (
-          <div className="t-opp-starter">
-            Opp starter — {payload.opp_starter.name}: {payload.opp_starter.ip} IP, {payload.opp_starter.h} H,{" "}
-            {payload.opp_starter.er} ER, {payload.opp_starter.k} K
-          </div>
-        )}
-      </section>
+            {payload.relievers.length > 0 && (
+              <div className="t-bullpen-total">
+                Bullpen: {payload.relievers.length} · {payload.bullpen_pitches} pitches
+              </div>
+            )}
+            {payload.opp_starter && (
+              <div className="t-opp-starter">
+                Opp starter — {payload.opp_starter.name}: {payload.opp_starter.ip} IP, {payload.opp_starter.h} H,{" "}
+                {payload.opp_starter.er} ER, {payload.opp_starter.k} K
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
 
       <footer className="t-footer">
         WE table: {payload.we_table_meta.n_states ?? "—"} states · seasons{" "}
