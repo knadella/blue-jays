@@ -300,6 +300,15 @@ def build_players_payload(season: int) -> PlayersResponse:
         for pid, v in pitcher_agg.items()
     ]
 
+    # "Full-time" filter: scale thresholds with games played so the cut stays
+    # consistent through the season. Batters need ~0.8 PA/team-game (a regular
+    # who starts most days). Pitchers need either a meaningful reliever
+    # workload (~0.4 BF/team-game) or any rotation start (>=2 starts).
+    min_batter_pa = max(25, int(games_included * 0.8))
+    min_pitcher_bf = max(15, int(games_included * 0.4))
+    batters = [b for b in batters if b.pa >= min_batter_pa]
+    pitchers = [p for p in pitchers if p.bf >= min_pitcher_bf or p.starts >= 2]
+
     batters.sort(key=lambda c: c.wpa, reverse=True)
     pitchers.sort(key=lambda c: c.wpa, reverse=True)
 
