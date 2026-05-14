@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -35,9 +36,15 @@ logger = logging.getLogger(__name__)
 
 JAYS_TEAM_ID = 141
 _CACHE_DIR: Path = APP_CACHE_DIR / "game_wpa"
+_PAYLOAD_CACHE_DIR: Path = APP_CACHE_DIR / "players_payload"
 # Bump when adding fields the aggregator depends on. Files written under an
 # older version are treated as missing so they get refetched on next request.
 _CACHE_SCHEMA_VERSION = 2
+
+# In-memory schedule cache. statsapi.schedule() is ~1s; we only really need it
+# fresh enough to notice when a new game has completed.
+_SCHEDULE_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
+_SCHEDULE_TTL_SEC = 300.0  # 5 minutes
 
 
 def _cache_path(game_pk: int) -> Path:
@@ -218,6 +225,84 @@ def _completed_jays_games(season: int) -> list[dict[str, Any]]:
     return finals
 
 
+def _completed_jays_games_cached(season: int) -> list[dict[str, Any]]:
+    """Same as ``_completed_jays_games`` but cached for 5 minutes in-process.
+
+    The schedule changes only when a game completes, so a short TTL is plenty
+    fresh and lets us serve hot requests in milliseconds instead of paying for
+    a StatsAPI roundtrip every time.
+    """
+    now = time.time()
+    entry = _SCHEDULE_CACHE.get(season)
+    if entry and (now - entry[0]) < _SCHEDULE_TTL_SEC:
+        return entry[1]
+    games = _completed_jays_games(season)
+    _SCHEDULE_CACHE[season] = (now, games)
+    return games
+
+
+def _payload_disk_path(season: int) -> Path:
+    return _PAYLOAD_CACHE_DIR / f"{season}.json"
+
+
+def read_persisted_payload_bytes(season: int) -> bytes | None:
+    """Raw JSON bytes of the last assembled payload, or None if absent."""
+    p = _payload_disk_path(season)
+    if not p.is_file():
+        return None
+    try:
+        return p.read_bytes()
+    except OSError:
+        return None
+
+
+def _persist_payload(season: int, payload: PlayersResponse) -> None:
+    _PAYLOAD_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    p = _payload_disk_path(season)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(payload.model_dump_json())
+    tmp.replace(p)
+
+
+def _persisted_fingerprint(raw: bytes) -> tuple[int, str] | None:
+    """Pull ``(games_included, last_game_date)`` out of cached JSON cheaply."""
+    try:
+        d = json.loads(raw)
+        return int(d.get("games_included", 0)), str(d.get("last_game_date") or "")
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
+
+
+def serve_players_payload(season: int) -> bytes:
+    """Return raw JSON bytes for ``/api/players``.
+
+    Fast path: persisted file on disk whose ``(games_included, last_game_date)``
+    matches the current schedule — served as-is in single-digit ms.
+    Slow path: rebuild from per-game cache (and refetch any games missing from
+    that cache), persist, then return.
+    """
+    games = _completed_jays_games_cached(season)
+    last_date = max((g.get("game_date") or "") for g in games) if games else ""
+    fingerprint = (len(games), last_date)
+
+    raw = read_persisted_payload_bytes(season)
+    if raw is not None:
+        fp = _persisted_fingerprint(raw)
+        if fp == fingerprint:
+            return raw
+
+    payload = build_players_payload(season, _games=games)
+    _persist_payload(season, payload)
+    return payload.model_dump_json().encode("utf-8")
+
+
+def invalidate_players_payload(season: int) -> None:
+    """Delete the persisted payload so the next request rebuilds it."""
+    _SCHEDULE_CACHE.pop(season, None)
+    p = _payload_disk_path(season)
+    p.unlink(missing_ok=True)
+
+
 def _ensure_cached(game_pk: int) -> dict[str, Any] | None:
     cached = _load_cached(game_pk)
     if cached is not None:
@@ -228,8 +313,10 @@ def _ensure_cached(game_pk: int) -> dict[str, Any] | None:
     return payload
 
 
-def build_players_payload(season: int) -> PlayersResponse:
-    games = _completed_jays_games(season)
+def build_players_payload(
+    season: int, *, _games: list[dict[str, Any]] | None = None
+) -> PlayersResponse:
+    games = _games if _games is not None else _completed_jays_games_cached(season)
     if not games:
         return PlayersResponse(
             season=season,

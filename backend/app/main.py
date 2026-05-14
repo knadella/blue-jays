@@ -19,7 +19,10 @@ from config import (
 
 from .schemas import PlayersResponse, RefreshResponse, TodayResponse
 from .services.game_story import build_today_payload
-from .services.player_season import build_players_payload
+from .services.player_season import (
+    invalidate_players_payload,
+    serve_players_payload,
+)
 from .services.weekly_actuals import build_weekly_actuals_payload
 
 logger = logging.getLogger(__name__)
@@ -70,10 +73,16 @@ def today() -> TodayResponse:
     return payload
 
 
-@app.get("/api/players", response_model=PlayersResponse)
-def players(season: int = Query(DEFAULT_SEASON, ge=2000, le=2100)) -> PlayersResponse:
-    """Season-long net WPA contribution per Blue Jays player."""
-    return build_players_payload(season)
+@app.get("/api/players")
+def players(season: int = Query(DEFAULT_SEASON, ge=2000, le=2100)):
+    """Season-long net WPA contribution per Blue Jays player.
+
+    Served from the persisted payload on disk when its games-included fingerprint
+    matches the current schedule; otherwise rebuilt and re-persisted.
+    """
+    from fastapi.responses import Response
+
+    return Response(content=serve_players_payload(season), media_type="application/json")
 
 
 @app.get("/api/weekly-actuals")
@@ -127,6 +136,26 @@ def admin_refresh_actuals(
         status="ok",
         season=season,
         games_completed=len(completed_for_team),
+        timestamp=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+@app.post("/api/admin/refresh-players")
+def admin_refresh_players(
+    _auth: Annotated[None, Depends(verify_admin_key)],
+    season: int = Query(DEFAULT_SEASON, ge=2000, le=2100),
+) -> RefreshResponse:
+    """Invalidate the persisted players payload and rebuild it from per-game cache."""
+    import json
+    from datetime import datetime, timezone
+
+    invalidate_players_payload(season)
+    raw = serve_players_payload(season)
+    games_completed = int(json.loads(raw).get("games_included", 0))
+    return RefreshResponse(
+        status="ok",
+        season=season,
+        games_completed=games_completed,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
