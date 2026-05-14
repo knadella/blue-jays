@@ -2170,6 +2170,59 @@ body {
   color: var(--muted-light);
 }
 
+/* ----- About WPA explainer (Today header) ----- */
+
+.t-about {
+  margin: 8px 0 14px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.t-about__title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.t-about__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.t-about__body + .t-about__body {
+  margin-top: 6px;
+}
+
+.t-about__body em {
+  font-style: italic;
+  color: var(--ink);
+}
+
+.t-about__body strong {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.t-about__pos {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.t-about__neg {
+  color: #b13a3a;
+  font-weight: 700;
+}
+
 /* ============================================================
    Desktop layout (>= 720px)
    ============================================================ */

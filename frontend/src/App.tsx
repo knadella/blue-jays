@@ -104,6 +104,25 @@ function Today({ payload }: { payload: TodayResponse }) {
         <div className="t-header__venue">{h.venue}</div>
       </header>
 
+      <aside className="t-about" aria-label="What WPA means">
+        <div className="t-about__title">WPA · Win Probability Added</div>
+        <p className="t-about__body">
+          Each play shifts the Jays' chance of winning. WPA is the difference
+          between win expectancy <em>after</em> a play and <em>before</em> it,
+          from the Jays' point of view. <span className="t-about__pos">+</span>{" "}
+          helps the Jays, <span className="t-about__neg">−</span> hurts them.
+          Roughly: <strong>±0.05</strong> is moderate,{" "}
+          <strong>±0.15</strong> is high-leverage,{" "}
+          <strong>±0.30+</strong> swings the game.
+        </p>
+        <p className="t-about__body">
+          Win expectancy comes from an empirical table built from past seasons:
+          for any inning · base/out · score-gap state, it's the actual win
+          rate of teams in that spot historically. So WPA is grounded in what
+          really happened, not a model.
+        </p>
+      </aside>
+
       <div className="t-grid">
         <div className="t-col t-col--left">
           <section className="t-card">
