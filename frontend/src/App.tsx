@@ -5,7 +5,6 @@ import {
   fetchToday,
   type BatterCard,
   type Contributor,
-  type GameRef,
   type LeveragePlay,
   type PitcherCard,
   type PitcherLine,
@@ -277,6 +276,7 @@ function LeverageRow({ play }: { play: LeveragePlay }) {
         <span className="t-lev__score">{play.score_before}</span>
       </div>
       <div className="t-lev__desc">{play.description}</div>
+      {play.why && <div className="t-lev__why">{play.why}</div>}
     </li>
   );
 }
@@ -319,12 +319,15 @@ function PitcherRow({ p, role }: { p: PitcherLine; role: "starter" | "relief" })
 // Players
 // ---------------------------------------------------------------------------
 
+type WindowMode = "30d" | "season";
+
 function PlayersTab() {
   const [payload, setPayload] = useState<PlayersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [side, setSide] = useState<"batters" | "pitchers">("batters");
+  const [win, setWin] = useState<WindowMode>("30d");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -361,11 +364,26 @@ function PlayersTab() {
   if (error) return <div className="t-card t-error">{error}</div>;
   if (!payload) return null;
 
-  const batters = payload.batters;
-  const pitchers = payload.pitchers;
   const showBatters = side === "batters";
+
+  // In 30d mode, hide players with no recent activity and sort by recent WPA.
+  const batters = (() => {
+    if (win === "season") return [...payload.batters].sort((a, b) => b.wpa - a.wpa);
+    return payload.batters
+      .filter((b) => b.recent30 && b.recent30.games > 0)
+      .sort((a, b) => (b.recent30!.wpa) - (a.recent30!.wpa));
+  })();
+  const pitchers = (() => {
+    if (win === "season") return [...payload.pitchers].sort((a, b) => b.wpa - a.wpa);
+    return payload.pitchers
+      .filter((p) => p.recent30 && p.recent30.games > 0)
+      .sort((a, b) => (b.recent30!.wpa) - (a.recent30!.wpa));
+  })();
+
   const list = showBatters ? batters : pitchers;
-  const maxAbs = Math.max(0.001, ...list.map((p) => Math.abs(p.wpa)));
+  const wpaOf = (p: BatterCard | PitcherCard): number =>
+    win === "season" ? p.wpa : (p.recent30?.wpa ?? 0);
+  const maxAbs = Math.max(0.001, ...list.map((p) => Math.abs(wpaOf(p))));
 
   return (
     <>
@@ -398,10 +416,33 @@ function PlayersTab() {
         </button>
       </div>
 
+      <div className="p-toggle p-toggle--sub" role="tablist" aria-label="Window">
+        <button
+          className={`p-toggle__btn ${win === "30d" ? "p-toggle__btn--active" : ""}`}
+          onClick={() => setWin("30d")}
+          role="tab"
+          aria-selected={win === "30d"}
+        >
+          Last 30 days
+        </button>
+        <button
+          className={`p-toggle__btn ${win === "season" ? "p-toggle__btn--active" : ""}`}
+          onClick={() => setWin("season")}
+          role="tab"
+          aria-selected={win === "season"}
+        >
+          Season
+        </button>
+      </div>
+
       <ul className="p-list">
         {showBatters
-          ? batters.map((b) => <BatterCardRow key={b.player_id} c={b} maxAbs={maxAbs} />)
-          : pitchers.map((p) => <PitcherCardRow key={p.player_id} c={p} maxAbs={maxAbs} />)}
+          ? batters.map((b) => (
+              <BatterCardRow key={b.player_id} c={b} maxAbs={maxAbs} win={win} />
+            ))
+          : pitchers.map((p) => (
+              <PitcherCardRow key={p.player_id} c={p} maxAbs={maxAbs} win={win} />
+            ))}
       </ul>
     </>
   );
@@ -421,65 +462,199 @@ function WpaBar({ wpa, maxAbs }: { wpa: number; maxAbs: number }) {
   );
 }
 
-function GameRefChip({ g, label }: { g: GameRef; label: string }) {
-  const sign = g.wpa >= 0 ? "+" : "−";
+function fmtAvg(v: number | null): string {
+  if (v == null) return "—";
+  // ".248" style — drop leading zero.
+  const s = v.toFixed(3);
+  return s.startsWith("0") ? s.slice(1) : s;
+}
+
+function fmtEra(v: number | null): string {
+  return v == null ? "—" : v.toFixed(2);
+}
+
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length === 0) return null;
+  const W = 84;
+  const H = 22;
+  const pad = 1.5;
+  const maxAbs = Math.max(0.001, ...values.map((v) => Math.abs(v)));
+  const n = values.length;
+  const xStep = n > 1 ? (W - pad * 2) / (n - 1) : 0;
+  const yMid = H / 2;
+  const yScale = (H / 2 - pad) / maxAbs;
+  const points = values.map((v, i) => {
+    const x = pad + (n > 1 ? i * xStep : (W - pad * 2) / 2);
+    const y = yMid - v * yScale;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const path = `M ${points.join(" L ")}`;
+  // Bars indicate sign; line carries the trend
   return (
-    <span className={`p-ref p-ref--${g.wpa >= 0 ? "pos" : "neg"}`}>
-      <span className="p-ref__label">{label}</span>
-      <span className="p-ref__opp">
-        {g.jays_won ? "W" : "L"} vs {g.opp_abbr}
-      </span>
-      <span className="p-ref__date">{g.game_date.slice(5)}</span>
-      <span className="p-ref__wpa">
-        {sign}
-        {Math.abs(g.wpa).toFixed(2)}
-      </span>
-    </span>
+    <svg
+      className="p-spark"
+      viewBox={`0 0 ${W} ${H}`}
+      width={W}
+      height={H}
+      role="img"
+      aria-label={`Last ${n} games WPA trend`}
+      preserveAspectRatio="none"
+    >
+      <line x1={0} x2={W} y1={yMid} y2={yMid} className="p-spark__axis" />
+      {values.map((v, i) => {
+        const x = pad + (n > 1 ? i * xStep : (W - pad * 2) / 2);
+        const y = yMid - v * yScale;
+        return (
+          <line
+            key={i}
+            x1={x}
+            x2={x}
+            y1={yMid}
+            y2={y}
+            className={`p-spark__bar p-spark__bar--${v >= 0 ? "pos" : "neg"}`}
+          />
+        );
+      })}
+      <path d={path} className="p-spark__line" />
+    </svg>
   );
 }
 
-function BatterCardRow({ c, maxAbs }: { c: BatterCard; maxAbs: number }) {
-  const sign = c.wpa >= 0 ? "+" : "−";
+function BatterCardRow({
+  c,
+  maxAbs,
+  win,
+}: {
+  c: BatterCard;
+  maxAbs: number;
+  win: WindowMode;
+}) {
+  const view =
+    win === "season"
+      ? {
+          wpa: c.wpa,
+          games: c.games,
+          pa: c.pa,
+          rbi: c.rbi,
+          hr: c.hr,
+          so: c.so,
+          bb: c.bb,
+          avg: c.avg,
+          obp: c.obp,
+          slg: c.slg,
+        }
+      : c.recent30
+        ? {
+            wpa: c.recent30.wpa,
+            games: c.recent30.games,
+            pa: c.recent30.pa,
+            rbi: c.recent30.rbi,
+            hr: c.recent30.hr,
+            so: c.recent30.so,
+            bb: c.recent30.bb,
+            avg: c.recent30.avg,
+            obp: c.recent30.obp,
+            slg: c.recent30.slg,
+          }
+        : { wpa: 0, games: 0, pa: 0, rbi: 0, hr: 0, so: 0, bb: 0, avg: null, obp: null, slg: null };
+  const sign = view.wpa >= 0 ? "+" : "−";
   return (
     <li className="p-card">
       <div className="p-card__head">
         <span className="p-card__name">{c.name}</span>
-        <span className={`p-card__wpa p-card__wpa--${c.wpa >= 0 ? "pos" : "neg"}`}>
+        <span className={`p-card__wpa p-card__wpa--${view.wpa >= 0 ? "pos" : "neg"}`}>
           {sign}
-          {Math.abs(c.wpa).toFixed(3)}
+          {Math.abs(view.wpa).toFixed(3)}
         </span>
       </div>
-      <WpaBar wpa={c.wpa} maxAbs={maxAbs} />
-      <div className="p-card__meta">
-        G {c.games} · PA {c.pa} · RBI {c.rbi}
+      <WpaBar wpa={view.wpa} maxAbs={maxAbs} />
+      <div className="p-card__meta-row">
+        <span className="p-card__meta">
+          G {view.games} · PA {view.pa}
+        </span>
+        <Sparkline values={c.spark_30} />
       </div>
-      <div className="p-card__refs">
-        {c.best_game && <GameRefChip g={c.best_game} label="best" />}
-        {c.worst_game && <GameRefChip g={c.worst_game} label="worst" />}
+      <div className="p-statline">
+        <span className="p-statline__slash">
+          {fmtAvg(view.avg)}<span className="p-statline__sep">/</span>
+          {fmtAvg(view.obp)}<span className="p-statline__sep">/</span>
+          {fmtAvg(view.slg)}
+        </span>
+        <span className="p-statline__counts">
+          <span className="p-statline__pair"><span className="p-statline__k">HR</span> {view.hr}</span>
+          <span className="p-statline__pair"><span className="p-statline__k">RBI</span> {view.rbi}</span>
+          <span className="p-statline__pair"><span className="p-statline__k">BB</span> {view.bb}</span>
+          <span className="p-statline__pair"><span className="p-statline__k">K</span> {view.so}</span>
+        </span>
       </div>
     </li>
   );
 }
 
-function PitcherCardRow({ c, maxAbs }: { c: PitcherCard; maxAbs: number }) {
-  const sign = c.wpa >= 0 ? "+" : "−";
+function PitcherCardRow({
+  c,
+  maxAbs,
+  win,
+}: {
+  c: PitcherCard;
+  maxAbs: number;
+  win: WindowMode;
+}) {
+  const view =
+    win === "season"
+      ? {
+          wpa: c.wpa,
+          games: c.games,
+          starts: c.starts,
+          bf: c.bf,
+          ip: c.ip,
+          so: c.so,
+          bb: c.bb,
+          er: c.er,
+          era: c.era,
+        }
+      : c.recent30
+        ? {
+            wpa: c.recent30.wpa,
+            games: c.recent30.games,
+            starts: c.recent30.starts,
+            bf: c.recent30.bf,
+            ip: c.recent30.ip,
+            so: c.recent30.so,
+            bb: c.recent30.bb,
+            er: c.recent30.er,
+            era: c.recent30.era,
+          }
+        : { wpa: 0, games: 0, starts: 0, bf: 0, ip: "0.0", so: 0, bb: 0, er: 0, era: null };
+  const sign = view.wpa >= 0 ? "+" : "−";
   return (
     <li className="p-card">
       <div className="p-card__head">
         <span className="p-card__name">{c.name}</span>
-        <span className={`p-card__wpa p-card__wpa--${c.wpa >= 0 ? "pos" : "neg"}`}>
+        <span className={`p-card__wpa p-card__wpa--${view.wpa >= 0 ? "pos" : "neg"}`}>
           {sign}
-          {Math.abs(c.wpa).toFixed(3)}
+          {Math.abs(view.wpa).toFixed(3)}
         </span>
       </div>
-      <WpaBar wpa={c.wpa} maxAbs={maxAbs} />
-      <div className="p-card__meta">
-        G {c.games}
-        {c.starts > 0 && ` · ${c.starts} starts`} · BF {c.bf} · {c.pitches}p
+      <WpaBar wpa={view.wpa} maxAbs={maxAbs} />
+      <div className="p-card__meta-row">
+        <span className="p-card__meta">
+          G {view.games}
+          {view.starts > 0 && ` · ${view.starts} starts`} · BF {view.bf}
+        </span>
+        <Sparkline values={c.spark_30} />
       </div>
-      <div className="p-card__refs">
-        {c.best_game && <GameRefChip g={c.best_game} label="best" />}
-        {c.worst_game && <GameRefChip g={c.worst_game} label="worst" />}
+      <div className="p-statline">
+        <span className="p-statline__slash">
+          {view.ip}<span className="p-statline__k"> IP</span>
+          <span className="p-statline__sep"> · </span>
+          {fmtEra(view.era)}<span className="p-statline__k"> ERA</span>
+        </span>
+        <span className="p-statline__counts">
+          <span className="p-statline__pair"><span className="p-statline__k">K</span> {view.so}</span>
+          <span className="p-statline__pair"><span className="p-statline__k">BB</span> {view.bb}</span>
+          <span className="p-statline__pair"><span className="p-statline__k">ER</span> {view.er}</span>
+        </span>
       </div>
     </li>
   );

@@ -218,6 +218,11 @@ class LeveragePlay(BaseModel):
     wpa_jays: float
     we_before_jays: float
     we_after_jays: float
+    # State going INTO the play, used to explain why the WPA was big or small.
+    outs_before: int = 0
+    bases_before: str = "000"  # 3-char mask, "1" = runner present
+    jays_diff_before: int = 0  # Jays score minus opponent score, going in
+    why: str = ""  # one-line plain-English explanation of the WPA magnitude
 
 
 class Contributor(BaseModel):
@@ -263,12 +268,34 @@ class TodayResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class GameRef(BaseModel):
-    game_pk: int
-    game_date: str
-    opp_abbr: str
-    jays_won: bool
+class BatterWindow(BaseModel):
     wpa: float
+    games: int
+    pa: int
+    rbi: int = 0
+    # Production line (helps decode the WPA number)
+    ab: int = 0
+    h: int = 0
+    hr: int = 0
+    so: int = 0
+    bb: int = 0
+    avg: Optional[float] = None
+    obp: Optional[float] = None
+    slg: Optional[float] = None
+
+
+class PitcherWindow(BaseModel):
+    wpa: float
+    games: int
+    starts: int = 0
+    bf: int = 0
+    pitches: int = 0
+    # Production line
+    ip: str = "0.0"
+    er: int = 0
+    so: int = 0
+    bb: int = 0
+    era: Optional[float] = None
 
 
 class BatterCard(BaseModel):
@@ -278,8 +305,16 @@ class BatterCard(BaseModel):
     games: int
     pa: int
     rbi: int = 0
-    best_game: Optional[GameRef] = None
-    worst_game: Optional[GameRef] = None
+    ab: int = 0
+    h: int = 0
+    hr: int = 0
+    so: int = 0
+    bb: int = 0
+    avg: Optional[float] = None
+    obp: Optional[float] = None
+    slg: Optional[float] = None
+    recent30: Optional[BatterWindow] = None
+    spark_30: list[float] = Field(default_factory=list)
 
 
 class PitcherCard(BaseModel):
@@ -290,8 +325,13 @@ class PitcherCard(BaseModel):
     starts: int = 0
     bf: int = 0
     pitches: int = 0
-    best_game: Optional[GameRef] = None
-    worst_game: Optional[GameRef] = None
+    ip: str = "0.0"
+    er: int = 0
+    so: int = 0
+    bb: int = 0
+    era: Optional[float] = None
+    recent30: Optional[PitcherWindow] = None
+    spark_30: list[float] = Field(default_factory=list)
 
 
 class PlayersResponse(BaseModel):

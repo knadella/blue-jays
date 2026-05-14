@@ -1751,6 +1751,17 @@ body {
   color: var(--ink-soft);
 }
 
+.t-lev__why {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  font-feature-settings: "tnum";
+  border-left: 2px solid var(--card-border);
+  padding-left: 8px;
+}
+
 /* ----- Contributor rows ----- */
 
 .t-contribs {
@@ -2034,10 +2045,89 @@ body {
   font-feature-settings: "tnum";
 }
 
-.p-card__refs {
+.p-card__meta-row {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.p-spark {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.p-spark__axis {
+  stroke: var(--card-border);
+  stroke-width: 1;
+}
+
+.p-spark__bar {
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+.p-spark__bar--pos {
+  stroke: var(--green);
+}
+
+.p-spark__bar--neg {
+  stroke: #b13a3a;
+}
+
+.p-spark__line {
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+
+.p-toggle--sub {
+  margin-top: 8px;
+}
+
+.p-statline {
+  display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-feature-settings: "tnum";
+  color: var(--ink);
+}
+
+.p-statline__slash {
+  font-weight: 600;
+}
+
+.p-statline__counts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--ink-soft);
+}
+
+.p-statline__pair {
+  white-space: nowrap;
+}
+
+.p-statline__k {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+
+.p-statline__sep {
+  color: var(--muted-light);
+  font-weight: 400;
+  margin: 0 2px;
 }
 
 /* ----- WPA bar (centered, signed) ----- */
@@ -2072,47 +2162,6 @@ body {
 
 .p-bar__fill--neg {
   background: #b13a3a;
-}
-
-/* ----- Game ref chip (best / worst game) ----- */
-
-.p-ref {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: var(--radius-pill);
-  background: var(--canvas);
-  border: 1px solid var(--card-border);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-feature-settings: "tnum";
-}
-
-.p-ref__label {
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.p-ref__opp {
-  color: var(--ink-soft);
-}
-
-.p-ref__date {
-  color: var(--muted-light);
-}
-
-.p-ref__wpa {
-  font-weight: 700;
-}
-
-.p-ref--pos .p-ref__wpa {
-  color: var(--green);
-}
-
-.p-ref--neg .p-ref__wpa {
-  color: #b13a3a;
 }
 
 .t-loading__elapsed {

@@ -271,7 +271,9 @@ def compute_wpa_for_game(
 
     Returns:
         list of dicts, one per play, with:
-            ``play_index``, ``wpa_batter``, ``wpa_pitcher``, ``we_before``, ``we_after``.
+            ``play_index``, ``wpa_batter``, ``wpa_pitcher``, ``we_before``, ``we_after``,
+            ``outs_before``, ``bases_before`` (3-char "010" mask), ``diff_before_bat``
+            (batting-team minus fielding-team, going in).
 
         ``we_before`` / ``we_after`` are from the BATTING side's perspective for
         that play (so ``wpa_batter == we_after - we_before``). Pitcher WPA is the
@@ -383,6 +385,10 @@ def compute_wpa_for_game(
                 "wpa_pitcher": round(-wpa_bat, 5),
                 "we_before": round(we_before, 5),
                 "we_after": round(we_after_bat, 5),
+                "outs_before": int(outs_before),
+                "bases_before": bases_before,
+                # batting team's score - fielding team's score, going in
+                "diff_before_bat": int(diff_before),
             }
         )
 

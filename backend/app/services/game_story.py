@@ -39,6 +39,83 @@ def _half_letter(about: dict[str, Any]) -> str:
     return "T" if about.get("isTopInning") else "B"
 
 
+def _bases_phrase(bases: str) -> str:
+    """'010' (3-char mask, 1B/2B/3B) -> 'runner on 2nd', 'bases loaded', etc."""
+    if len(bases) != 3 or bases == "000":
+        return "bases empty"
+    if bases == "111":
+        return "bases loaded"
+    on = []
+    if bases[0] == "1":
+        on.append("1st")
+    if bases[1] == "1":
+        on.append("2nd")
+    if bases[2] == "1":
+        on.append("3rd")
+    noun = "runner" if len(on) == 1 else "runners"
+    if len(on) == 1:
+        joined = on[0]
+    elif len(on) == 2:
+        joined = " and ".join(on)
+    else:
+        joined = ", ".join(on[:-1]) + ", and " + on[-1]
+    return f"{noun} on {joined}"
+
+
+def _score_phrase(diff: int) -> str:
+    if diff == 0:
+        return "tied"
+    if diff > 0:
+        return f"Jays up {diff}"
+    return f"Jays down {-diff}"
+
+
+def _compose_why(
+    *,
+    inning: int,
+    half: str,
+    outs_before: int,
+    bases_before: str,
+    jays_diff_before: int,
+    we_before_jays: float,
+    we_after_jays: float,
+    batter_is_jays: bool,
+) -> str:
+    """One-line plain-English rationale for the WPA magnitude."""
+    swing = abs(we_after_jays - we_before_jays)
+    half_word = "Top" if half == "T" else "Bottom"
+    when = f"{half_word} {inning}"
+    bases = _bases_phrase(bases_before)
+    outs_word = "0 outs" if outs_before == 0 else ("1 out" if outs_before == 1 else "2 outs")
+    score = _score_phrase(jays_diff_before)
+
+    # Leverage descriptor — late-inning + close-and-late get the biggest labels.
+    late = inning >= 9
+    extras = inning >= 10
+    close = abs(jays_diff_before) <= 2
+    if swing >= 0.30:
+        if extras:
+            tag = "walk-off-leverage spot"
+        elif late and close:
+            tag = "max-leverage spot"
+        else:
+            tag = "huge swing"
+    elif swing >= 0.15:
+        tag = "high-leverage spot"
+    elif swing >= 0.05:
+        tag = "moderate leverage"
+    else:
+        tag = "low leverage" if (inning <= 3 or abs(jays_diff_before) >= 5) else "small swing"
+
+    we_b = round(we_before_jays * 100)
+    we_a = round(we_after_jays * 100)
+    side = "at the plate" if batter_is_jays else "in the field"
+    return (
+        f"{when}, {bases}, {outs_word}, {score} — {tag} ({side}). "
+        f"WE {we_b}% → {we_a}%."
+    )
+
+
 def _find_latest_jays_final(lookback_days: int = 30) -> dict[str, Any] | None:
     today = dt.date.today()
     start = (today - dt.timedelta(days=lookback_days)).isoformat()
@@ -134,6 +211,11 @@ def build_today_payload() -> TodayResponse | None:
         wpa_bat = wp["wpa_batter"]
         wpa_jays = wpa_bat if batter_is_jays else -wpa_bat
 
+        # Jays-perspective score diff going INTO the play.
+        jays_before = prev_home if jays_are_home else prev_away
+        opp_before = prev_away if jays_are_home else prev_home
+        jays_diff_before = jays_before - opp_before
+
         leverage_candidates.append(
             (
                 i,
@@ -144,6 +226,10 @@ def build_today_payload() -> TodayResponse | None:
                     else (1.0 - wp["we_before"]),
                     "we_after_jays": we_after_jays,
                     "score_before": (prev_away, prev_home),
+                    "outs_before": int(wp.get("outs_before", 0)),
+                    "bases_before": str(wp.get("bases_before", "000")),
+                    "jays_diff_before": jays_diff_before,
+                    "batter_is_jays": batter_is_jays,
                 },
                 about,
                 result,
@@ -159,16 +245,32 @@ def build_today_payload() -> TodayResponse | None:
     for play_idx, ext, about, result in leverage_candidates[:5]:
         a, h = ext["score_before"]
         score_str = f"{header.away_abbr} {a}-{h} {header.home_abbr}"
+        inning_n = int(about.get("inning", 0) or 0)
+        half = _half_letter(about)
+        why = _compose_why(
+            inning=inning_n,
+            half=half,
+            outs_before=ext["outs_before"],
+            bases_before=ext["bases_before"],
+            jays_diff_before=ext["jays_diff_before"],
+            we_before_jays=ext["we_before_jays"],
+            we_after_jays=ext["we_after_jays"],
+            batter_is_jays=ext["batter_is_jays"],
+        )
         leverage_plays.append(
             LeveragePlay(
                 play_index=play_idx,
-                inning=int(about.get("inning", 0) or 0),
-                half=_half_letter(about),
+                inning=inning_n,
+                half=half,
                 score_before=score_str,
                 description=_shorten(result.get("description", "")),
                 wpa_jays=round(ext["wpa_jays"], 5),
                 we_before_jays=round(ext["we_before_jays"], 5),
                 we_after_jays=round(ext["we_after_jays"], 5),
+                outs_before=ext["outs_before"],
+                bases_before=ext["bases_before"],
+                jays_diff_before=ext["jays_diff_before"],
+                why=why,
             )
         )
 

@@ -55,6 +55,10 @@ export interface LeveragePlay {
   wpa_jays: number;
   we_before_jays: number;
   we_after_jays: number;
+  outs_before: number;
+  bases_before: string;
+  jays_diff_before: number;
+  why: string;
 }
 
 export interface Contributor {
@@ -109,12 +113,32 @@ export async function fetchToday(signal?: AbortSignal): Promise<TodayResponse> {
 // Players (season-long net contribution)
 // ---------------------------------------------------------------------------
 
-export interface GameRef {
-  game_pk: number;
-  game_date: string;
-  opp_abbr: string;
-  jays_won: boolean;
+export interface BatterWindow {
   wpa: number;
+  games: number;
+  pa: number;
+  rbi: number;
+  ab: number;
+  h: number;
+  hr: number;
+  so: number;
+  bb: number;
+  avg: number | null;
+  obp: number | null;
+  slg: number | null;
+}
+
+export interface PitcherWindow {
+  wpa: number;
+  games: number;
+  starts: number;
+  bf: number;
+  pitches: number;
+  ip: string;
+  er: number;
+  so: number;
+  bb: number;
+  era: number | null;
 }
 
 export interface BatterCard {
@@ -124,8 +148,16 @@ export interface BatterCard {
   games: number;
   pa: number;
   rbi: number;
-  best_game: GameRef | null;
-  worst_game: GameRef | null;
+  ab: number;
+  h: number;
+  hr: number;
+  so: number;
+  bb: number;
+  avg: number | null;
+  obp: number | null;
+  slg: number | null;
+  recent30: BatterWindow | null;
+  spark_30: number[];
 }
 
 export interface PitcherCard {
@@ -136,8 +168,13 @@ export interface PitcherCard {
   starts: number;
   bf: number;
   pitches: number;
-  best_game: GameRef | null;
-  worst_game: GameRef | null;
+  ip: string;
+  er: number;
+  so: number;
+  bb: number;
+  era: number | null;
+  recent30: PitcherWindow | null;
+  spark_30: number[];
 }
 
 export interface PlayersResponse {
