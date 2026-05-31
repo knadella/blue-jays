@@ -341,3 +341,45 @@ class PlayersResponse(BaseModel):
     batters: list[BatterCard] = Field(default_factory=list)
     pitchers: list[PitcherCard] = Field(default_factory=list)
     generated_at: str
+
+
+# ---------------------------------------------------------------------------
+# Standings (division table + momentum + quality of competition)
+# ---------------------------------------------------------------------------
+
+
+class TeamStanding(BaseModel):
+    team: str
+    abbrev: str
+    w: int
+    l: int
+    pct: float
+    gb: float  # games back of the division leader (0.0 for the leader)
+    streak: str  # e.g. "W3", "L1", or "—"
+    last10: str  # e.g. "7-3"
+    last10_results: list[str] = Field(default_factory=list)  # oldest→newest
+    run_diff: int
+    is_favorite: bool = False
+
+
+class QualityRecord(BaseModel):
+    label: str
+    w: int
+    l: int
+    pct: float
+
+
+class StandingsResponse(BaseModel):
+    season: int
+    division: str
+    last_game_date: Optional[str] = None
+    teams: list[TeamStanding] = Field(default_factory=list)
+    # Favorite-team momentum
+    favorite_streak: str = "—"
+    favorite_last10: str = "0-0"
+    favorite_run_diff: int = 0
+    favorite_results: list[str] = Field(default_factory=list)  # last ~20, oldest→newest
+    # Quality of competition
+    vs_winning: QualityRecord
+    vs_losing: QualityRecord
+    generated_at: str

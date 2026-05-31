@@ -17,8 +17,9 @@ from config import (
     TEAM_ABBREVS,
 )
 
-from .schemas import PlayersResponse, RefreshResponse, TodayResponse
+from .schemas import PlayersResponse, RefreshResponse, StandingsResponse, TodayResponse
 from .services.game_story import build_today_payload
+from .services.standings import build_standings_payload
 from .services.player_season import (
     invalidate_players_payload,
     serve_players_payload,
@@ -83,6 +84,12 @@ def players(season: int = Query(DEFAULT_SEASON, ge=2000, le=2100)):
     from fastapi.responses import Response
 
     return Response(content=serve_players_payload(season), media_type="application/json")
+
+
+@app.get("/api/standings", response_model=StandingsResponse)
+def standings(season: int = Query(DEFAULT_SEASON, ge=2000, le=2100)) -> StandingsResponse:
+    """Blue Jays division standings, recent momentum, and record by opponent quality."""
+    return build_standings_payload(season)
 
 
 @app.get("/api/weekly-actuals")

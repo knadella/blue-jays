@@ -194,3 +194,52 @@ export async function fetchPlayers(season: number, signal?: AbortSignal): Promis
   }
   return response.json();
 }
+
+
+// ---------------------------------------------------------------------------
+// Standings (division table + momentum + quality of competition)
+// ---------------------------------------------------------------------------
+
+export interface TeamStanding {
+  team: string;
+  abbrev: string;
+  w: number;
+  l: number;
+  pct: number;
+  gb: number;
+  streak: string;
+  last10: string;
+  last10_results: string[];
+  run_diff: number;
+  is_favorite: boolean;
+}
+
+export interface QualityRecord {
+  label: string;
+  w: number;
+  l: number;
+  pct: number;
+}
+
+export interface StandingsResponse {
+  season: number;
+  division: string;
+  last_game_date: string | null;
+  teams: TeamStanding[];
+  favorite_streak: string;
+  favorite_last10: string;
+  favorite_run_diff: number;
+  favorite_results: string[];
+  vs_winning: QualityRecord;
+  vs_losing: QualityRecord;
+  generated_at: string;
+}
+
+export async function fetchStandings(season: number, signal?: AbortSignal): Promise<StandingsResponse> {
+  const url = `${API_BASE}/api/standings?season=${season}`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`Standings HTTP ${response.status}. Is the API running on 127.0.0.1:8000?`);
+  }
+  return response.json();
+}

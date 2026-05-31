@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   fetchPlayers,
+  fetchStandings,
   fetchToday,
   type BatterCard,
   type Contributor,
@@ -9,13 +10,16 @@ import {
   type PitcherCard,
   type PitcherLine,
   type PlayersResponse,
+  type QualityRecord,
+  type StandingsResponse,
+  type TeamStanding,
   type TodayResponse,
   type WEPoint,
 } from "./api";
 
 const DEFAULT_SEASON = Number(import.meta.env.VITE_MLB_SEASON) || 2026;
 
-type Tab = "today" | "players";
+type Tab = "today" | "players" | "standings";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("today");
@@ -39,10 +43,19 @@ export default function App() {
         >
           Season players
         </button>
+        <button
+          className={`tab-bar__btn ${tab === "standings" ? "tab-bar__btn--active" : ""}`}
+          onClick={() => setTab("standings")}
+          role="tab"
+          aria-selected={tab === "standings"}
+        >
+          Standings
+        </button>
       </nav>
       <div className="today-shell">
         {tab === "today" && <TodayTab />}
         {tab === "players" && <PlayersTab />}
+        {tab === "standings" && <StandingsTab />}
       </div>
     </div>
   );
@@ -676,5 +689,164 @@ function PitcherCardRow({
         </span>
       </div>
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Standings
+// ---------------------------------------------------------------------------
+
+function fmtPct3(v: number): string {
+  return v.toFixed(3).replace(/^0/, "");
+}
+
+function fmtRD(n: number): string {
+  return n > 0 ? `+${n}` : `${n}`;
+}
+
+function streakKind(s: string): "w" | "l" | "n" {
+  if (s.startsWith("W")) return "w";
+  if (s.startsWith("L")) return "l";
+  return "n";
+}
+
+function ResultPips({ results }: { results: string[] }) {
+  return (
+    <div className="st-pips">
+      {results.map((r, i) => (
+        <span
+          key={i}
+          className={`st-pip st-pip--${r === "W" ? "w" : "l"}`}
+          title={r === "W" ? "Win" : "Loss"}
+        />
+      ))}
+    </div>
+  );
+}
+
+function StandingRow({ t }: { t: TeamStanding }) {
+  return (
+    <div className={`st-row ${t.is_favorite ? "st-row--fav" : ""}`}>
+      <span className="st-row__team">
+        <span className="st-row__abbr">{t.abbrev}</span>
+      </span>
+      <span className="st-row__wl">
+        {t.w}-{t.l}
+      </span>
+      <span className="st-row__pct">{fmtPct3(t.pct)}</span>
+      <span className="st-row__gb">{t.gb === 0 ? "—" : t.gb.toFixed(1)}</span>
+      <span className={`st-row__streak st-row__streak--${streakKind(t.streak)}`}>{t.streak}</span>
+      <span className="st-row__l10">{t.last10}</span>
+      <span className={`st-row__rd st-row__rd--${t.run_diff >= 0 ? "pos" : "neg"}`}>
+        {fmtRD(t.run_diff)}
+      </span>
+    </div>
+  );
+}
+
+function QualityRow({ q }: { q: QualityRecord }) {
+  const total = q.w + q.l;
+  const pct = total > 0 ? (q.w / total) * 100 : 0;
+  return (
+    <div className="st-qual">
+      <div className="st-qual__head">
+        <span className="st-qual__label">{q.label}</span>
+        <span className="st-qual__rec">
+          {q.w}-{q.l}
+          {total > 0 && <em className="st-qual__pct"> · {fmtPct3(q.pct)}</em>}
+        </span>
+      </div>
+      <div className="st-qual__track">
+        <div className="st-qual__fill" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function StandingsTab() {
+  const [data, setData] = useState<StandingsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    fetchStandings(DEFAULT_SEASON, controller.signal)
+      .then((d) => setData(d))
+      .catch((err: Error) => {
+        if (err.name !== "AbortError") setError(err.message || String(err));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  if (loading) return <div className="t-card t-loading">Loading…</div>;
+  if (error) return <div className="t-card t-error">{error}</div>;
+  if (!data) return null;
+
+  return (
+    <div className="standings">
+      <header className="t-header">
+        <div className="t-header__date">Season {data.season}</div>
+        {data.last_game_date && (
+          <div className="p-summary">
+            <span className="p-summary__last">through {data.last_game_date}</span>
+          </div>
+        )}
+      </header>
+
+      <section className="t-card">
+        <h2 className="t-card__title">Blue Jays momentum</h2>
+        <div className="st-momentum__stats">
+          <div className="st-mstat">
+            <span className="st-mstat__label">Streak</span>
+            <b className={`st-mstat__val st-mstat__val--${streakKind(data.favorite_streak)}`}>
+              {data.favorite_streak}
+            </b>
+          </div>
+          <div className="st-mstat">
+            <span className="st-mstat__label">Last 10</span>
+            <b className="st-mstat__val">{data.favorite_last10}</b>
+          </div>
+          <div className="st-mstat">
+            <span className="st-mstat__label">Run diff</span>
+            <b className={`st-mstat__val st-mstat__val--${data.favorite_run_diff >= 0 ? "w" : "l"}`}>
+              {fmtRD(data.favorite_run_diff)}
+            </b>
+          </div>
+        </div>
+        <ResultPips results={data.favorite_results} />
+        <p className="st-momentum__hint">Recent games, oldest to newest — green is a win.</p>
+      </section>
+
+      <section className="t-card">
+        <h2 className="t-card__title">{data.division}</h2>
+        <div className="st-row st-row--head">
+          <span className="st-row__team">Team</span>
+          <span className="st-row__wl">W-L</span>
+          <span className="st-row__pct">PCT</span>
+          <span className="st-row__gb">GB</span>
+          <span className="st-row__streak">STRK</span>
+          <span className="st-row__l10">L10</span>
+          <span className="st-row__rd">RD</span>
+        </div>
+        {data.teams.map((t) => (
+          <StandingRow key={t.abbrev} t={t} />
+        ))}
+      </section>
+
+      <section className="t-card">
+        <h2 className="t-card__title">Beating good teams?</h2>
+        <QualityRow q={data.vs_winning} />
+        <QualityRow q={data.vs_losing} />
+        <p className="st-momentum__hint">
+          Record split by the opponent's season win% — the top bar is games against teams at .500 or
+          better.
+        </p>
+      </section>
+    </div>
   );
 }
