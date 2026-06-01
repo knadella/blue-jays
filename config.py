@@ -147,3 +147,31 @@ TEAM_COLORS = {
     "Tampa Bay Rays": "#092C5C", "Texas Rangers": "#003278",
     "Toronto Blue Jays": "#134A8E", "Washington Nationals": "#AB0003",
 }
+
+# MLB StatsAPI numeric team ids, keyed by abbreviation.
+TEAM_IDS = {
+    "ARI": 109, "ATL": 144, "BAL": 110, "BOS": 111, "CHC": 112, "CHW": 145,
+    "CIN": 113, "CLE": 114, "COL": 115, "DET": 116, "HOU": 117, "KC": 118,
+    "LAA": 108, "LAD": 119, "MIA": 146, "MIL": 158, "MIN": 142, "NYM": 121,
+    "NYY": 147, "OAK": 133, "PHI": 143, "PIT": 134, "SD": 135, "SF": 137,
+    "SEA": 136, "STL": 138, "TB": 139, "TEX": 140, "TOR": 141, "WSH": 120,
+}
+
+# Reverse of TEAM_ABBREVS: abbreviation -> full name.
+ABBREV_TO_NAME = {abbrev: name for name, abbrev in TEAM_ABBREVS.items()}
+
+# The team shown by default, and the set offered in the team picker.
+DEFAULT_TEAM_ABBREV = "TOR"
+SELECTABLE_TEAMS = ["TOR", "NYY"]
+
+
+def resolve_team(abbrev: str | None) -> tuple[str, str, int]:
+    """Map a team abbreviation to ``(abbrev, full_name, mlb_id)``.
+
+    Falls back to the default team for unknown/missing input so callers can
+    pass an untrusted query param straight through.
+    """
+    ab = (abbrev or DEFAULT_TEAM_ABBREV).upper()
+    if ab not in TEAM_IDS or ab not in ABBREV_TO_NAME:
+        ab = DEFAULT_TEAM_ABBREV
+    return ab, ABBREV_TO_NAME[ab], TEAM_IDS[ab]

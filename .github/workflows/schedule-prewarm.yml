@@ -1,8 +1,9 @@
-# Daily: pre-warm /api/today + /api/players so first user load is fast.
+# Daily: pre-warm /api/today, /api/players, /api/standings for every team in
+# the picker so the first user load is fast.
 #
 # /api/players triggers per-game WPA tallies for any new completed game and
-# caches them at /data/game_wpa/<game_pk>.json on the Fly volume. After this
-# job runs, subsequent /api/players requests are sub-second.
+# caches them at /data/game_wpa/<abbrev>/<game_pk>.json on the Fly volume.
+# After this job runs, subsequent requests are sub-second.
 #
 # Secrets: API_BASE_URL (required).
 # Test: Actions → this workflow → Run workflow.
@@ -17,7 +18,7 @@ on:
 jobs:
   prewarm:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Resolve API URL
         env:
@@ -32,33 +33,38 @@ jobs:
           echo "API_URL=${BASE}" >> "$GITHUB_ENV"
           echo "✓ API_URL = ${BASE}"
 
-      - name: Warm /api/today
+      - name: Warm caches for each team
         run: |
-          set -euo pipefail
-          echo "→ GET /api/today"
-          HTTP_CODE=$(curl -s -o /tmp/today.json -w "%{http_code}" \
-            --max-time 60 \
-            "${API_URL}/api/today")
-          echo "HTTP ${HTTP_CODE}"
-          if [ "$HTTP_CODE" -ge 400 ]; then
-            echo "::warning::/api/today returned HTTP ${HTTP_CODE}"
-            cat /tmp/today.json | head -20 || true
-          else
-            python3 -c "import json; d=json.load(open('/tmp/today.json')); h=d['header']; print(f\"✓ {h['game_date']} {h['away_abbr']} {h['away_score']} @ {h['home_abbr']} {h['home_score']}\")"
-          fi
-
-      - name: Warm /api/players (season cache)
-        run: |
-          set -euo pipefail
+          set -uo pipefail
           SEASON=$(date -u +%Y)
-          echo "→ GET /api/players?season=${SEASON}"
-          HTTP_CODE=$(curl -s -o /tmp/players.json -w "%{http_code}" \
-            --max-time 240 \
-            "${API_URL}/api/players?season=${SEASON}")
-          echo "HTTP ${HTTP_CODE}"
-          if [ "$HTTP_CODE" -ge 400 ]; then
-            echo "::error::/api/players returned HTTP ${HTTP_CODE}"
-            cat /tmp/players.json | head -20 || true
-            exit 1
-          fi
-          python3 -c "import json; d=json.load(open('/tmp/players.json')); print(f\"✓ {d['games_included']} games · {len(d['batters'])} batters · {len(d['pitchers'])} pitchers · last {d.get('last_game_date')}\")"
+          # Teams offered in the picker (mirror config.SELECTABLE_TEAMS).
+          TEAMS="TOR NYY"
+          fail=0
+          for TEAM in $TEAMS; do
+            echo "=== ${TEAM} ==="
+
+            echo "→ GET /api/today?team=${TEAM}"
+            CODE=$(curl -s -o /tmp/today.json -w "%{http_code}" --max-time 60 \
+              "${API_URL}/api/today?team=${TEAM}")
+            echo "  HTTP ${CODE}"
+            [ "$CODE" -ge 400 ] && echo "::warning::/api/today (${TEAM}) HTTP ${CODE}"
+
+            echo "→ GET /api/players?season=${SEASON}&team=${TEAM}"
+            CODE=$(curl -s -o /tmp/players.json -w "%{http_code}" --max-time 240 \
+              "${API_URL}/api/players?season=${SEASON}&team=${TEAM}")
+            echo "  HTTP ${CODE}"
+            if [ "$CODE" -ge 400 ]; then
+              echo "::error::/api/players (${TEAM}) HTTP ${CODE}"
+              head -20 /tmp/players.json || true
+              fail=1
+            else
+              python3 -c "import json; d=json.load(open('/tmp/players.json')); print(f\"  ✓ {d['games_included']} games · {len(d['batters'])} batters · {len(d['pitchers'])} pitchers · last {d.get('last_game_date')}\")"
+            fi
+
+            echo "→ GET /api/standings?season=${SEASON}&team=${TEAM}"
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
+              "${API_URL}/api/standings?season=${SEASON}&team=${TEAM}")
+            echo "  HTTP ${CODE}"
+            [ "$CODE" -ge 400 ] && echo "::warning::/api/standings (${TEAM}) HTTP ${CODE}"
+          done
+          exit $fail

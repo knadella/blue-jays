@@ -45,7 +45,7 @@ FAVORITE_TEAM = "Toronto Blue Jays"
 
 
 def build_weekly_actuals_payload(*, season: int, team: str | None = None, skip_cache: bool = False) -> WeeklyActualsResponse:
-    favorite = FAVORITE_TEAM
+    favorite = team or FAVORITE_TEAM
     abbrev = TEAM_ABBREVS[favorite]
 
     # Check disk cache first for instant response

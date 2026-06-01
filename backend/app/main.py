@@ -13,8 +13,11 @@ from config import (
     ADMIN_API_KEY,
     CORS_ORIGINS,
     DEFAULT_SEASON,
+    DEFAULT_TEAM_ABBREV,
     GITHUB_PAGES_CORS_ORIGIN_REGEX,
+    SELECTABLE_TEAMS,
     TEAM_ABBREVS,
+    resolve_team,
 )
 
 from .schemas import PlayersResponse, RefreshResponse, StandingsResponse, TodayResponse
@@ -41,6 +44,32 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+def _prewarm_players_on_startup() -> None:
+    """Warm the season-players payload for every selectable team in the
+    background, so the first real request is served from the persisted cache.
+
+    Runs in a daemon thread (non-blocking startup) and is skipped when
+    ``SKIP_DASHBOARD_WARMUP`` is set — handy for fast local dev restarts.
+    """
+    import os
+    import threading
+
+    if os.getenv("SKIP_DASHBOARD_WARMUP", "").strip().lower() in ("1", "true", "yes", "on"):
+        return
+
+    def _warm() -> None:
+        for abbrev in SELECTABLE_TEAMS:
+            try:
+                _, _, team_id = resolve_team(abbrev)
+                serve_players_payload(DEFAULT_SEASON, team_id=team_id, abbrev=abbrev)
+                logger.info("prewarmed players for %s %s", abbrev, DEFAULT_SEASON)
+            except Exception:  # noqa: BLE001
+                logger.warning("startup prewarm failed for %s", abbrev, exc_info=True)
+
+    threading.Thread(target=_warm, name="players-prewarm", daemon=True).start()
+
+
 def verify_admin_key(
     x_admin_key: Annotated[Optional[str], Header(alias="X-Admin-Key")] = None,
 ) -> None:
@@ -65,43 +94,66 @@ def team() -> dict[str, str]:
     return {"team": FAVORITE_TEAM}
 
 
+@app.get("/api/teams")
+def teams() -> dict:
+    """Teams offered in the picker, in display order."""
+    out = []
+    for ab in SELECTABLE_TEAMS:
+        abbrev, name, _ = resolve_team(ab)
+        out.append({"abbrev": abbrev, "name": name})
+    return {"teams": out, "default": DEFAULT_TEAM_ABBREV}
+
+
 @app.get("/api/today", response_model=TodayResponse)
-def today() -> TodayResponse:
-    """Post-game story for the most recent completed Blue Jays game."""
-    payload = build_today_payload()
+def today(team: str = Query(DEFAULT_TEAM_ABBREV)) -> TodayResponse:
+    """Post-game story for the most recent completed game for *team*."""
+    _, name, team_id = resolve_team(team)
+    payload = build_today_payload(team_id=team_id)
     if payload is None:
-        raise HTTPException(status_code=404, detail="No recent Final Blue Jays game found")
+        raise HTTPException(status_code=404, detail=f"No recent Final game found for {name}")
     return payload
 
 
 @app.get("/api/players")
-def players(season: int = Query(DEFAULT_SEASON, ge=2000, le=2100)):
-    """Season-long net WPA contribution per Blue Jays player.
+def players(
+    season: int = Query(DEFAULT_SEASON, ge=2000, le=2100),
+    team: str = Query(DEFAULT_TEAM_ABBREV),
+):
+    """Season-long net WPA contribution per player for *team*.
 
     Served from the persisted payload on disk when its games-included fingerprint
     matches the current schedule; otherwise rebuilt and re-persisted.
     """
     from fastapi.responses import Response
 
-    return Response(content=serve_players_payload(season), media_type="application/json")
+    abbrev, _, team_id = resolve_team(team)
+    return Response(
+        content=serve_players_payload(season, team_id=team_id, abbrev=abbrev),
+        media_type="application/json",
+    )
 
 
 @app.get("/api/standings", response_model=StandingsResponse)
-def standings(season: int = Query(DEFAULT_SEASON, ge=2000, le=2100)) -> StandingsResponse:
-    """Blue Jays division standings, recent momentum, and record by opponent quality."""
-    return build_standings_payload(season)
+def standings(
+    season: int = Query(DEFAULT_SEASON, ge=2000, le=2100),
+    team: str = Query(DEFAULT_TEAM_ABBREV),
+) -> StandingsResponse:
+    """Division standings, recent momentum, and record by opponent quality for *team*."""
+    _, name, _ = resolve_team(team)
+    return build_standings_payload(season, favorite=name)
 
 
 @app.get("/api/weekly-actuals")
 def weekly_actuals(
     season: int = Query(DEFAULT_SEASON, ge=2000, le=2100),
+    team: str = Query(DEFAULT_TEAM_ABBREV),
 ):
-    """Pitch-level Statcast splits by ISO week (offense + run prevention) for the Blue Jays."""
+    """Pitch-level Statcast splits by ISO week (offense + run prevention) for *team*."""
     from fastapi.responses import Response
 
     from .services.weekly_cache import WEEKLY_CACHE_DIR
 
-    abbrev = TEAM_ABBREVS[FAVORITE_TEAM]
+    abbrev, name, _ = resolve_team(team)
     cache_path = WEEKLY_CACHE_DIR / f"{season}_{abbrev}.json"
     if cache_path.exists():
         return Response(
@@ -109,7 +161,7 @@ def weekly_actuals(
             media_type="application/json",
         )
 
-    return build_weekly_actuals_payload(season=season)
+    return build_weekly_actuals_payload(season=season, team=name)
 
 
 # ---------------------------------------------------------------------------

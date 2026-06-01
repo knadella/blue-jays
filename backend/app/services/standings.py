@@ -1,4 +1,4 @@
-"""Division standings, momentum, and quality-of-competition for the Blue Jays.
+"""Division standings, momentum, and quality-of-competition for a chosen team.
 
 Everything is derived from the same regular-season schedule the rest of the app
 already uses (and caches), so there is a single source of truth: completed games
@@ -16,7 +16,7 @@ from data_source.mlb_api import fetch_schedule, split_schedule
 
 from ..schemas import QualityRecord, StandingsResponse, TeamStanding
 
-FAVORITE_TEAM = "Toronto Blue Jays"
+DEFAULT_FAVORITE = "Toronto Blue Jays"
 
 # Win% at/above which an opponent counts as a "good" team for quality-of-wins.
 WINNING_THRESHOLD = 0.500
@@ -61,7 +61,9 @@ def _last10(results: list[str]) -> tuple[str, list[str]]:
     return f"{w}-{len(tail) - w}", tail
 
 
-def build_standings_payload(season: int) -> StandingsResponse:
+def build_standings_payload(
+    season: int, favorite: str = DEFAULT_FAVORITE
+) -> StandingsResponse:
     schedule = fetch_schedule(season)
     completed, _ = split_schedule(schedule)
     by_team = _team_results(completed)
@@ -72,7 +74,7 @@ def build_standings_payload(season: int) -> StandingsResponse:
         res = [r[1] for r in recs]
         win_pct[team] = res.count("W") / len(res) if res else 0.0
 
-    division = TEAM_TO_DIVISION[FAVORITE_TEAM]
+    division = TEAM_TO_DIVISION[favorite]
     rows: list[dict] = []
     for team in DIVISIONS[division]:
         recs = by_team.get(team, [])
@@ -90,7 +92,7 @@ def build_standings_payload(season: int) -> StandingsResponse:
                 "last10": last10_str,
                 "last10_results": last10_res,
                 "run_diff": sum(r[2] for r in recs),
-                "is_favorite": team == FAVORITE_TEAM,
+                "is_favorite": team == favorite,
             }
         )
 
@@ -104,26 +106,26 @@ def build_standings_payload(season: int) -> StandingsResponse:
         teams.append(TeamStanding(gb=round(gb, 1), **r))
 
     # Favorite momentum.
-    fav = by_team.get(FAVORITE_TEAM, [])
+    fav = by_team.get(favorite, [])
     fav_res = [r[1] for r in fav]
     fav_last10, _ = _last10(fav_res)
     last_game_date: Optional[str] = fav[-1][0] if fav else None
 
-    # Quality of competition: grade each Jays decision by the opponent's win%.
+    # Quality of competition: grade each favorite decision by the opponent's win%.
     vs_w = {"w": 0, "l": 0}
     vs_l = {"w": 0, "l": 0}
     for g in completed:
         home, away = g["home_name"], g["away_name"]
-        if FAVORITE_TEAM not in (home, away):
+        if favorite not in (home, away):
             continue
         hs, as_ = g.get("home_score"), g.get("away_score")
         if hs is None or as_ is None or hs == as_:
             continue
-        opp = away if home == FAVORITE_TEAM else home
-        jays_score = hs if home == FAVORITE_TEAM else as_
-        opp_score = as_ if home == FAVORITE_TEAM else hs
+        opp = away if home == favorite else home
+        fav_score = hs if home == favorite else as_
+        opp_score = as_ if home == favorite else hs
         bucket = vs_w if win_pct.get(opp, 0.0) >= WINNING_THRESHOLD else vs_l
-        bucket["w" if jays_score > opp_score else "l"] += 1
+        bucket["w" if fav_score > opp_score else "l"] += 1
 
     def _quality(label: str, b: dict) -> QualityRecord:
         n = b["w"] + b["l"]

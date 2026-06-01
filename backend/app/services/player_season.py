@@ -1,9 +1,13 @@
-"""Season-long per-player WPA aggregation for the Blue Jays.
+"""Season-long per-player WPA aggregation for a chosen team.
 
-For each completed Blue Jays game, computes per-player WPA tallies (batter
-and pitcher) and caches the result to ``.cache/game_wpa/<game_pk>.json``.
-The aggregator reads every cached game and returns sorted ``BatterCard`` /
+For each completed game, computes per-player WPA tallies (batter and pitcher)
+and caches the result to ``.cache/game_wpa/<abbrev>/<game_pk>.json``. The
+aggregator reads every cached game and returns sorted ``BatterCard`` /
 ``PitcherCard`` lists with best/worst single-game contributions.
+
+Caches are keyed by team abbreviation, because WPA is computed from the
+favorite team's perspective — the same game (e.g. TOR @ NYY) yields different
+tallies depending on which side you're rooting for.
 
 First call after a new game lands does the heavy lifting (one StatsAPI
 ``game`` + ``game_boxscore`` call per uncached game). Repeat calls are
@@ -35,24 +39,25 @@ from .wpa import compute_wpa_for_game
 logger = logging.getLogger(__name__)
 
 JAYS_TEAM_ID = 141
+DEFAULT_ABBREV = "TOR"
 _CACHE_DIR: Path = APP_CACHE_DIR / "game_wpa"
 _PAYLOAD_CACHE_DIR: Path = APP_CACHE_DIR / "players_payload"
 # Bump when adding fields the aggregator depends on. Files written under an
 # older version are treated as missing so they get refetched on next request.
 _CACHE_SCHEMA_VERSION = 2
 
-# In-memory schedule cache. statsapi.schedule() is ~1s; we only really need it
-# fresh enough to notice when a new game has completed.
-_SCHEDULE_CACHE: dict[int, tuple[float, list[dict[str, Any]]]] = {}
+# In-memory schedule cache, keyed by (team_id, season). statsapi.schedule() is
+# ~1s; we only really need it fresh enough to notice when a new game completed.
+_SCHEDULE_CACHE: dict[tuple[int, int], tuple[float, list[dict[str, Any]]]] = {}
 _SCHEDULE_TTL_SEC = 300.0  # 5 minutes
 
 
-def _cache_path(game_pk: int) -> Path:
-    return _CACHE_DIR / f"{game_pk}.json"
+def _cache_path(game_pk: int, abbrev: str) -> Path:
+    return _CACHE_DIR / abbrev / f"{game_pk}.json"
 
 
-def _load_cached(game_pk: int) -> dict[str, Any] | None:
-    p = _cache_path(game_pk)
+def _load_cached(game_pk: int, abbrev: str) -> dict[str, Any] | None:
+    p = _cache_path(game_pk, abbrev)
     if not p.is_file():
         return None
     try:
@@ -67,15 +72,15 @@ def _load_cached(game_pk: int) -> dict[str, Any] | None:
     return data
 
 
-def _save_cached(game_pk: int, payload: dict[str, Any]) -> None:
-    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = _cache_path(game_pk).with_suffix(".tmp")
+def _save_cached(game_pk: int, payload: dict[str, Any], abbrev: str) -> None:
+    (_CACHE_DIR / abbrev).mkdir(parents=True, exist_ok=True)
+    tmp = _cache_path(game_pk, abbrev).with_suffix(".tmp")
     with tmp.open("w") as f:
         json.dump(payload, f, separators=(",", ":"))
-    tmp.replace(_cache_path(game_pk))
+    tmp.replace(_cache_path(game_pk, abbrev))
 
 
-def _build_game_tallies(game_pk: int) -> dict[str, Any] | None:
+def _build_game_tallies(game_pk: int, team_id: int) -> dict[str, Any] | None:
     """Fetch one game from StatsAPI, run WPA, return per-player tallies."""
     try:
         full = statsapi.get("game", {"gamePk": game_pk})
@@ -90,7 +95,7 @@ def _build_game_tallies(game_pk: int) -> dict[str, Any] | None:
     away = gd["teams"]["away"]
     home_id = home["id"]
     away_id = away["id"]
-    jays_are_home = home_id == JAYS_TEAM_ID
+    jays_are_home = home_id == team_id
     opp = away if jays_are_home else home
     opp_abbr = opp.get("abbreviation", opp["name"][:3].upper())
     game_date = gd.get("datetime", {}).get("officialDate", "")
@@ -207,12 +212,12 @@ def _build_game_tallies(game_pk: int) -> dict[str, Any] | None:
     }
 
 
-def _completed_jays_games(season: int) -> list[dict[str, Any]]:
+def _completed_jays_games(season: int, team_id: int) -> list[dict[str, Any]]:
     today = dt.date.today().isoformat()
     start = f"{season}-03-01"
     try:
         sched = statsapi.schedule(
-            team=JAYS_TEAM_ID, start_date=start, end_date=today
+            team=team_id, start_date=start, end_date=today
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("schedule fetch failed: %s", exc)
@@ -225,7 +230,7 @@ def _completed_jays_games(season: int) -> list[dict[str, Any]]:
     return finals
 
 
-def _completed_jays_games_cached(season: int) -> list[dict[str, Any]]:
+def _completed_jays_games_cached(season: int, team_id: int) -> list[dict[str, Any]]:
     """Same as ``_completed_jays_games`` but cached for 5 minutes in-process.
 
     The schedule changes only when a game completes, so a short TTL is plenty
@@ -233,21 +238,22 @@ def _completed_jays_games_cached(season: int) -> list[dict[str, Any]]:
     a StatsAPI roundtrip every time.
     """
     now = time.time()
-    entry = _SCHEDULE_CACHE.get(season)
+    key = (team_id, season)
+    entry = _SCHEDULE_CACHE.get(key)
     if entry and (now - entry[0]) < _SCHEDULE_TTL_SEC:
         return entry[1]
-    games = _completed_jays_games(season)
-    _SCHEDULE_CACHE[season] = (now, games)
+    games = _completed_jays_games(season, team_id)
+    _SCHEDULE_CACHE[key] = (now, games)
     return games
 
 
-def _payload_disk_path(season: int) -> Path:
-    return _PAYLOAD_CACHE_DIR / f"{season}.json"
+def _payload_disk_path(season: int, abbrev: str) -> Path:
+    return _PAYLOAD_CACHE_DIR / f"{abbrev}_{season}.json"
 
 
-def read_persisted_payload_bytes(season: int) -> bytes | None:
+def read_persisted_payload_bytes(season: int, abbrev: str) -> bytes | None:
     """Raw JSON bytes of the last assembled payload, or None if absent."""
-    p = _payload_disk_path(season)
+    p = _payload_disk_path(season, abbrev)
     if not p.is_file():
         return None
     try:
@@ -256,9 +262,9 @@ def read_persisted_payload_bytes(season: int) -> bytes | None:
         return None
 
 
-def _persist_payload(season: int, payload: PlayersResponse) -> None:
+def _persist_payload(season: int, payload: PlayersResponse, abbrev: str) -> None:
     _PAYLOAD_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    p = _payload_disk_path(season)
+    p = _payload_disk_path(season, abbrev)
     tmp = p.with_suffix(".tmp")
     tmp.write_text(payload.model_dump_json())
     tmp.replace(p)
@@ -273,7 +279,9 @@ def _persisted_fingerprint(raw: bytes) -> tuple[int, str] | None:
         return None
 
 
-def serve_players_payload(season: int) -> bytes:
+def serve_players_payload(
+    season: int, team_id: int = JAYS_TEAM_ID, abbrev: str = DEFAULT_ABBREV
+) -> bytes:
     """Return raw JSON bytes for ``/api/players``.
 
     Fast path: persisted file on disk whose ``(games_included, last_game_date)``
@@ -281,42 +289,50 @@ def serve_players_payload(season: int) -> bytes:
     Slow path: rebuild from per-game cache (and refetch any games missing from
     that cache), persist, then return.
     """
-    games = _completed_jays_games_cached(season)
+    games = _completed_jays_games_cached(season, team_id)
     last_date = max((g.get("game_date") or "") for g in games) if games else ""
     fingerprint = (len(games), last_date)
 
-    raw = read_persisted_payload_bytes(season)
+    raw = read_persisted_payload_bytes(season, abbrev)
     if raw is not None:
         fp = _persisted_fingerprint(raw)
         if fp == fingerprint:
             return raw
 
-    payload = build_players_payload(season, _games=games)
-    _persist_payload(season, payload)
+    payload = build_players_payload(
+        season, team_id=team_id, abbrev=abbrev, _games=games
+    )
+    _persist_payload(season, payload, abbrev)
     return payload.model_dump_json().encode("utf-8")
 
 
-def invalidate_players_payload(season: int) -> None:
+def invalidate_players_payload(
+    season: int, team_id: int = JAYS_TEAM_ID, abbrev: str = DEFAULT_ABBREV
+) -> None:
     """Delete the persisted payload so the next request rebuilds it."""
-    _SCHEDULE_CACHE.pop(season, None)
-    p = _payload_disk_path(season)
+    _SCHEDULE_CACHE.pop((team_id, season), None)
+    p = _payload_disk_path(season, abbrev)
     p.unlink(missing_ok=True)
 
 
-def _ensure_cached(game_pk: int) -> dict[str, Any] | None:
-    cached = _load_cached(game_pk)
+def _ensure_cached(game_pk: int, team_id: int, abbrev: str) -> dict[str, Any] | None:
+    cached = _load_cached(game_pk, abbrev)
     if cached is not None:
         return cached
-    payload = _build_game_tallies(game_pk)
+    payload = _build_game_tallies(game_pk, team_id)
     if payload is not None:
-        _save_cached(game_pk, payload)
+        _save_cached(game_pk, payload, abbrev)
     return payload
 
 
 def build_players_payload(
-    season: int, *, _games: list[dict[str, Any]] | None = None
+    season: int,
+    *,
+    team_id: int = JAYS_TEAM_ID,
+    abbrev: str = DEFAULT_ABBREV,
+    _games: list[dict[str, Any]] | None = None,
 ) -> PlayersResponse:
-    games = _games if _games is not None else _completed_jays_games_cached(season)
+    games = _games if _games is not None else _completed_jays_games_cached(season, team_id)
     if not games:
         return PlayersResponse(
             season=season,
@@ -333,7 +349,7 @@ def build_players_payload(
 
     for g in games:
         gpk = int(g["game_id"])
-        tallies = _ensure_cached(gpk)
+        tallies = _ensure_cached(gpk, team_id, abbrev)
         if tallies is None:
             continue
         games_included += 1

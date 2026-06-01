@@ -116,12 +116,14 @@ def _compose_why(
     )
 
 
-def _find_latest_jays_final(lookback_days: int = 30) -> dict[str, Any] | None:
+def _find_latest_jays_final(
+    lookback_days: int = 30, team_id: int = JAYS_TEAM_ID
+) -> dict[str, Any] | None:
     today = dt.date.today()
     start = (today - dt.timedelta(days=lookback_days)).isoformat()
     try:
         sched = statsapi.schedule(
-            team=JAYS_TEAM_ID, start_date=start, end_date=today.isoformat()
+            team=team_id, start_date=start, end_date=today.isoformat()
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("StatsAPI schedule failed: %s", exc)
@@ -133,9 +135,9 @@ def _find_latest_jays_final(lookback_days: int = 30) -> dict[str, Any] | None:
     return finals[-1]
 
 
-def build_today_payload() -> TodayResponse | None:
+def build_today_payload(team_id: int = JAYS_TEAM_ID) -> TodayResponse | None:
     """Return the Today payload, or None if no recent Final game can be found."""
-    game = _find_latest_jays_final()
+    game = _find_latest_jays_final(team_id=team_id)
     if game is None:
         return None
 
@@ -148,7 +150,7 @@ def build_today_payload() -> TodayResponse | None:
     away = gd["teams"]["away"]
     home_id = home["id"]
     away_id = away["id"]
-    jays_are_home = home_id == JAYS_TEAM_ID
+    jays_are_home = home_id == team_id
 
     linescore = ld["linescore"]
     final_home = linescore["teams"]["home"].get("runs", game.get("home_score", 0)) or 0
