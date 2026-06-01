@@ -2501,3 +2501,222 @@ body {
     background: var(--green);
     border-radius: 4px;
   }
+
+  /* ---------- WPA info tooltip (Today header) ---------- */
+
+  .t-header__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .t-tip {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  .t-tip__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-pill);
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .t-tip__btn:hover {
+    color: var(--accent);
+    border-color: var(--accent-soft);
+  }
+
+  .t-tip__btn[aria-expanded="true"] {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .t-tip__icon {
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  .t-tip__pop {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 30;
+    width: min(340px, 86vw);
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: 12px 14px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  .t-tip__pop strong {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .t-tip__pop em {
+    font-style: italic;
+    color: var(--ink);
+  }
+
+  /* ---------- Team switcher (top of page) ---------- */
+
+  .team-switch {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px 0;
+  }
+
+  .team-switch__btn {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-pill);
+    padding: 6px 16px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .team-switch__btn:hover {
+    color: var(--ink-soft);
+  }
+
+  .team-switch__btn--active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  /* ---------- Team switcher: logos only, clear selected state (overrides) ---------- */
+
+  .team-switch {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 12px 6px;
+  }
+
+  .team-switch__name {
+    display: none;
+  }
+
+  .team-switch__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    background: var(--card);
+    cursor: pointer;
+    opacity: 0.45;
+    filter: grayscale(0.85);
+    transition: opacity 0.15s ease, filter 0.15s ease, border-color 0.15s ease,
+      transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .team-switch__btn:hover {
+    opacity: 0.8;
+    filter: grayscale(0.2);
+  }
+
+  .team-switch__logo {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+  }
+
+  .team-switch__btn--active {
+    opacity: 1;
+    filter: none;
+    border-color: var(--accent);
+    background: var(--card);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+    transform: scale(1.08);
+  }
+
+  .team-switch__btn--active .team-switch__logo {
+    transform: none;
+  }
+
+  /* ---------- Season players: skeleton + refresh hint ---------- */
+
+  @keyframes p-skel-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.9; }
+  }
+
+  .p-card--skel {
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .p-skel-line {
+    height: 12px;
+    border-radius: 6px;
+    background: var(--card-border);
+    animation: p-skel-pulse 1.2s ease-in-out infinite;
+  }
+
+  .p-skel-line--name {
+    width: 45%;
+    height: 15px;
+  }
+
+  .p-skel-line--bar {
+    width: 100%;
+    height: 6px;
+  }
+
+  .p-skel-line--meta {
+    width: 30%;
+    height: 11px;
+  }
+
+  .p-skel-pill {
+    flex: 1;
+    height: 30px;
+    border-radius: var(--radius-pill);
+    background: var(--card-border);
+    animation: p-skel-pulse 1.2s ease-in-out infinite;
+  }
+
+  .p-summary__refresh {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted-light);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .p-skel-line,
+    .p-skel-pill {
+      animation: none;
+    }
+  }

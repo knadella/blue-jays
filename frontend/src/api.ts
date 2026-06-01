@@ -99,8 +99,8 @@ export interface TodayResponse {
   generated_at: string;
 }
 
-export async function fetchToday(signal?: AbortSignal): Promise<TodayResponse> {
-  const url = `${API_BASE}/api/today`;
+export async function fetchToday(team: string, signal?: AbortSignal): Promise<TodayResponse> {
+  const url = `${API_BASE}/api/today?team=${encodeURIComponent(team)}`;
   const response = await fetch(url, { signal });
   if (!response.ok) {
     throw new Error(`Today HTTP ${response.status}. Is the API running on 127.0.0.1:8000?`);
@@ -186,8 +186,12 @@ export interface PlayersResponse {
   generated_at: string;
 }
 
-export async function fetchPlayers(season: number, signal?: AbortSignal): Promise<PlayersResponse> {
-  const url = `${API_BASE}/api/players?season=${season}`;
+export async function fetchPlayers(
+  season: number,
+  team: string,
+  signal?: AbortSignal,
+): Promise<PlayersResponse> {
+  const url = `${API_BASE}/api/players?season=${season}&team=${encodeURIComponent(team)}`;
   const response = await fetch(url, { signal });
   if (!response.ok) {
     throw new Error(`Players HTTP ${response.status}. Is the API running on 127.0.0.1:8000?`);
@@ -235,11 +239,85 @@ export interface StandingsResponse {
   generated_at: string;
 }
 
-export async function fetchStandings(season: number, signal?: AbortSignal): Promise<StandingsResponse> {
-  const url = `${API_BASE}/api/standings?season=${season}`;
+export async function fetchStandings(
+  season: number,
+  team: string,
+  signal?: AbortSignal,
+): Promise<StandingsResponse> {
+  const url = `${API_BASE}/api/standings?season=${season}&team=${encodeURIComponent(team)}`;
   const response = await fetch(url, { signal });
   if (!response.ok) {
     throw new Error(`Standings HTTP ${response.status}. Is the API running on 127.0.0.1:8000?`);
   }
   return response.json();
+}
+
+
+// ---------------------------------------------------------------------------
+// Players client cache — stale-while-revalidate + prefetch.
+//
+// Players data changes at most once a day, so we render whatever we have
+// instantly (memory → localStorage) and revalidate in the background. Prefetch
+// warms it before the user opens the tab, making the switch feel instant.
+// ---------------------------------------------------------------------------
+
+const PLAYERS_CACHE_PREFIX = "mlb.players.";
+const playersMem = new Map<string, PlayersResponse>();
+const playersInflight = new Map<string, Promise<PlayersResponse>>();
+
+function playersKey(season: number, team: string): string {
+  return `${team}:${season}`;
+}
+
+/** Synchronous read for instant first paint: memory first, then localStorage. */
+export function getCachedPlayers(season: number, team: string): PlayersResponse | null {
+  const k = playersKey(season, team);
+  const mem = playersMem.get(k);
+  if (mem) return mem;
+  try {
+    const raw = localStorage.getItem(PLAYERS_CACHE_PREFIX + k);
+    if (raw) {
+      const parsed = JSON.parse(raw) as PlayersResponse;
+      playersMem.set(k, parsed);
+      return parsed;
+    }
+  } catch {
+    /* localStorage unavailable or corrupt — ignore */
+  }
+  return null;
+}
+
+function setCachedPlayers(season: number, team: string, data: PlayersResponse): void {
+  const k = playersKey(season, team);
+  playersMem.set(k, data);
+  try {
+    localStorage.setItem(PLAYERS_CACHE_PREFIX + k, JSON.stringify(data));
+  } catch {
+    /* quota/private mode — memory cache still works */
+  }
+}
+
+/** Fetch + cache, de-duping concurrent requests for the same team/season. */
+export function loadPlayers(season: number, team: string): Promise<PlayersResponse> {
+  const k = playersKey(season, team);
+  const existing = playersInflight.get(k);
+  if (existing) return existing;
+  const p = fetchPlayers(season, team)
+    .then((d) => {
+      setCachedPlayers(season, team, d);
+      return d;
+    })
+    .finally(() => {
+      playersInflight.delete(k);
+    });
+  playersInflight.set(k, p);
+  return p;
+}
+
+/** Fire-and-forget warm-up; safe to call repeatedly. */
+export function prefetchPlayers(season: number, team: string): void {
+  if (playersMem.has(playersKey(season, team))) return;
+  loadPlayers(season, team).catch(() => {
+    /* prefetch failures surface on the real load */
+  });
 }

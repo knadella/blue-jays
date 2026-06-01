@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
-  fetchPlayers,
   fetchStandings,
   fetchToday,
+  getCachedPlayers,
+  loadPlayers,
+  prefetchPlayers,
   type BatterCard,
   type Contributor,
   type LeveragePlay,
@@ -21,11 +23,73 @@ const DEFAULT_SEASON = Number(import.meta.env.VITE_MLB_SEASON) || 2026;
 
 type Tab = "today" | "players" | "standings";
 
+export interface TeamInfo {
+  abbrev: string;
+  city: string;
+  name: string;
+}
+
+// Teams offered in the picker. Mirrors config.SELECTABLE_TEAMS on the backend.
+const TEAMS: TeamInfo[] = [
+  { abbrev: "TOR", city: "Toronto", name: "Blue Jays" },
+  { abbrev: "NYY", city: "New York", name: "Yankees" },
+];
+
+/** Public path to a team's logo, base-path aware for GitHub Pages. */
+function teamLogo(abbrev: string): string {
+  return `${import.meta.env.BASE_URL}team-logos/${abbrev.toLowerCase()}_l.svg`;
+}
+
+const TEAM_STORAGE_KEY = "mlb.favoriteTeam";
+
+function loadTeam(): TeamInfo {
+  try {
+    const saved = localStorage.getItem(TEAM_STORAGE_KEY);
+    const found = TEAMS.find((t) => t.abbrev === saved);
+    if (found) return found;
+  } catch {
+    /* localStorage unavailable (private mode, etc.) — fall through to default */
+  }
+  return TEAMS[0];
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>("today");
+  const [team, setTeamState] = useState<TeamInfo>(loadTeam);
+
+  const setTeam = (t: TeamInfo) => {
+    setTeamState(t);
+    try {
+      localStorage.setItem(TEAM_STORAGE_KEY, t.abbrev);
+    } catch {
+      /* ignore persistence failures */
+    }
+  };
+
+  // Warm the Season-players payload for the active team as soon as the app
+  // loads (and whenever the team changes) so opening that tab feels instant.
+  useEffect(() => {
+    prefetchPlayers(DEFAULT_SEASON, team.abbrev);
+  }, [team.abbrev]);
 
   return (
     <div className="today-root">
+      <div className="team-switch" role="group" aria-label="Choose your team">
+        {TEAMS.map((t) => (
+          <button
+            key={t.abbrev}
+            className={`team-switch__btn ${
+              t.abbrev === team.abbrev ? "team-switch__btn--active" : ""
+            }`}
+            onClick={() => setTeam(t)}
+            aria-pressed={t.abbrev === team.abbrev}
+            aria-label={`${t.city} ${t.name}`}
+            title={`${t.city} ${t.name}`}
+          >
+            <img className="team-switch__logo" src={teamLogo(t.abbrev)} alt="" />
+          </button>
+        ))}
+      </div>
       <nav className="tab-bar" role="tablist">
         <button
           className={`tab-bar__btn ${tab === "today" ? "tab-bar__btn--active" : ""}`}
@@ -38,6 +102,7 @@ export default function App() {
         <button
           className={`tab-bar__btn ${tab === "players" ? "tab-bar__btn--active" : ""}`}
           onClick={() => setTab("players")}
+          onPointerEnter={() => prefetchPlayers(DEFAULT_SEASON, team.abbrev)}
           role="tab"
           aria-selected={tab === "players"}
         >
@@ -53,9 +118,9 @@ export default function App() {
         </button>
       </nav>
       <div className="today-shell">
-        {tab === "today" && <TodayTab />}
-        {tab === "players" && <PlayersTab />}
-        {tab === "standings" && <StandingsTab />}
+        {tab === "today" && <TodayTab team={team} />}
+        {tab === "players" && <PlayersTab team={team} />}
+        {tab === "standings" && <StandingsTab team={team} />}
       </div>
     </div>
   );
@@ -65,7 +130,7 @@ export default function App() {
 // Today
 // ---------------------------------------------------------------------------
 
-function TodayTab() {
+function TodayTab({ team }: { team: TeamInfo }) {
   const [payload, setPayload] = useState<TodayResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +139,7 @@ function TodayTab() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchToday(controller.signal)
+    fetchToday(team.abbrev, controller.signal)
       .then((d) => setPayload(d))
       .catch((err: Error) => {
         if (err.name !== "AbortError") setError(err.message || String(err));
@@ -83,63 +148,57 @@ function TodayTab() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [team.abbrev]);
 
   if (loading) return <div className="t-card t-loading">Loading…</div>;
   if (error) return <div className="t-card t-error">{error}</div>;
   if (!payload) return null;
-  return <Today payload={payload} />;
+  return <Today payload={payload} team={team} />;
 }
 
-function Today({ payload }: { payload: TodayResponse }) {
+function Today({ payload, team }: { payload: TodayResponse; team: TeamInfo }) {
   const h = payload.header;
   const wlPill = h.jays_won ? "W" : "L";
   return (
     <>
       <header className="t-header">
-        <div className="t-header__date">{h.game_date}</div>
+        <div className="t-header__top">
+          <span className="t-header__date">{h.game_date}</span>
+          <InfoTip label="What's WPA?">
+            <strong>WPA · Win Probability Added.</strong> Each play shifts the{" "}
+            {team.name}' chance of winning — the difference between win
+            expectancy <em>after</em> a play and <em>before</em> it, from the{" "}
+            {team.name}' point of view. <span className="t-about__pos">+</span>{" "}
+            helps {team.city}, <span className="t-about__neg">−</span> hurts
+            them. Roughly: <strong>±0.05</strong> moderate, <strong>±0.15</strong>{" "}
+            high-leverage, <strong>±0.30+</strong> swings the game. The
+            win-expectancy table is empirical — the actual historical win rate
+            for each inning · base/out · score-gap state, not a model.
+          </InfoTip>
+        </div>
         <div className="t-scoreline">
           <ScoreSide
             abbr={h.away_abbr}
             score={h.away_score}
-            isJays={h.away_abbr === "TOR"}
-            won={h.jays_won === (h.away_abbr === "TOR")}
+            isJays={h.away_abbr === team.abbrev}
+            won={h.jays_won === (h.away_abbr === team.abbrev)}
           />
           <span className="t-scoreline__at">@</span>
           <ScoreSide
             abbr={h.home_abbr}
             score={h.home_score}
-            isJays={h.home_abbr === "TOR"}
-            won={h.jays_won === (h.home_abbr === "TOR")}
+            isJays={h.home_abbr === team.abbrev}
+            won={h.jays_won === (h.home_abbr === team.abbrev)}
           />
           <span className={`t-pill t-pill--${h.jays_won ? "win" : "loss"}`}>{wlPill}</span>
         </div>
         <div className="t-header__venue">{h.venue}</div>
       </header>
 
-      <aside className="t-about" aria-label="What WPA means">
-        <div className="t-about__title">WPA · Win Probability Added</div>
-        <p className="t-about__body">
-          Each play shifts the Jays' chance of winning. WPA is the difference
-          between win expectancy <em>after</em> a play and <em>before</em> it,
-          from the Jays' point of view. <span className="t-about__pos">+</span>{" "}
-          helps the Jays, <span className="t-about__neg">−</span> hurts them.
-          Roughly: <strong>±0.05</strong> is moderate,{" "}
-          <strong>±0.15</strong> is high-leverage,{" "}
-          <strong>±0.30+</strong> swings the game.
-        </p>
-        <p className="t-about__body">
-          Win expectancy comes from an empirical table built from past seasons:
-          for any inning · base/out · score-gap state, it's the actual win
-          rate of teams in that spot historically. So WPA is grounded in what
-          really happened, not a model.
-        </p>
-      </aside>
-
       <div className="t-grid">
         <div className="t-col t-col--left">
           <section className="t-card">
-            <h2 className="t-card__title">Win expectancy (Toronto)</h2>
+            <h2 className="t-card__title">Win expectancy ({team.city})</h2>
             <WPSparkline trajectory={payload.we_trajectory} />
           </section>
 
@@ -202,6 +261,46 @@ function Today({ payload }: { payload: TodayResponse }) {
         {payload.we_table_meta.seasons?.join(", ") ?? "—"}
       </footer>
     </>
+  );
+}
+
+function InfoTip({ label, children }: { label: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="t-tip" ref={ref}>
+      <button
+        type="button"
+        className="t-tip__btn"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="t-tip__icon" aria-hidden="true">ⓘ</span>
+        <span className="t-tip__label">{label}</span>
+      </button>
+      {open && (
+        <div className="t-tip__pop" role="tooltip">
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -353,48 +452,66 @@ function PitcherRow({ p, role }: { p: PitcherLine; role: "starter" | "relief" })
 
 type WindowMode = "30d" | "season";
 
-function PlayersTab() {
-  const [payload, setPayload] = useState<PlayersResponse | null>(null);
+function PlayersSkeleton() {
+  return (
+    <>
+      <header className="t-header">
+        <div className="t-header__date">Season {DEFAULT_SEASON}</div>
+      </header>
+      <div className="p-toggle" aria-hidden="true">
+        <span className="p-skel-pill" />
+        <span className="p-skel-pill" />
+      </div>
+      <ul className="p-list" aria-busy="true" aria-label="Loading players">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <li key={i} className="p-card p-card--skel">
+            <div className="p-skel-line p-skel-line--name" />
+            <div className="p-skel-line p-skel-line--bar" />
+            <div className="p-skel-line p-skel-line--meta" />
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function PlayersTab({ team }: { team: TeamInfo }) {
+  const [payload, setPayload] = useState<PlayersResponse | null>(() =>
+    getCachedPlayers(DEFAULT_SEASON, team.abbrev),
+  );
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [elapsed, setElapsed] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const [side, setSide] = useState<"batters" | "pitchers">("batters");
   const [win, setWin] = useState<WindowMode>("30d");
 
   useEffect(() => {
-    const controller = new AbortController();
-    const t0 = Date.now();
-    const tick = window.setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
-    setLoading(true);
+    // Show whatever we already have for this team instantly, then revalidate.
+    const cached = getCachedPlayers(DEFAULT_SEASON, team.abbrev);
+    setPayload(cached);
     setError(null);
-    fetchPlayers(DEFAULT_SEASON, controller.signal)
-      .then((d) => setPayload(d))
+    let active = true;
+    setRefreshing(true);
+    loadPlayers(DEFAULT_SEASON, team.abbrev)
+      .then((d) => {
+        if (active) setPayload(d);
+      })
       .catch((err: Error) => {
-        if (err.name !== "AbortError") setError(err.message || String(err));
+        if (active && !cached) setError(err.message || String(err));
       })
       .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-          window.clearInterval(tick);
-        }
+        if (active) setRefreshing(false);
       });
-    return () => {
-      controller.abort();
-      window.clearInterval(tick);
-    };
-  }, []);
-
-  if (loading)
-    return (
-      <div className="t-card t-loading">
-        Loading season…{" "}
-        <span className="t-loading__elapsed" aria-live="polite">
-          ({elapsed}s)
-        </span>
-      </div>
+    // Warm the other team(s) so switching is instant too.
+    TEAMS.filter((t) => t.abbrev !== team.abbrev).forEach((t) =>
+      prefetchPlayers(DEFAULT_SEASON, t.abbrev),
     );
-  if (error) return <div className="t-card t-error">{error}</div>;
-  if (!payload) return null;
+    return () => {
+      active = false;
+    };
+  }, [team.abbrev]);
+
+  if (!payload && error) return <div className="t-card t-error">{error}</div>;
+  if (!payload) return <PlayersSkeleton />;
 
   const showBatters = side === "batters";
 
@@ -426,6 +543,7 @@ function PlayersTab() {
           {payload.last_game_date && (
             <span className="p-summary__last">through {payload.last_game_date}</span>
           )}
+          {refreshing && <span className="p-summary__refresh">updating…</span>}
         </div>
       </header>
 
@@ -763,7 +881,7 @@ function QualityRow({ q }: { q: QualityRecord }) {
   );
 }
 
-function StandingsTab() {
+function StandingsTab({ team }: { team: TeamInfo }) {
   const [data, setData] = useState<StandingsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -772,7 +890,7 @@ function StandingsTab() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchStandings(DEFAULT_SEASON, controller.signal)
+    fetchStandings(DEFAULT_SEASON, team.abbrev, controller.signal)
       .then((d) => setData(d))
       .catch((err: Error) => {
         if (err.name !== "AbortError") setError(err.message || String(err));
@@ -781,7 +899,7 @@ function StandingsTab() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [team.abbrev]);
 
   if (loading) return <div className="t-card t-loading">Loading…</div>;
   if (error) return <div className="t-card t-error">{error}</div>;
@@ -799,7 +917,7 @@ function StandingsTab() {
       </header>
 
       <section className="t-card">
-        <h2 className="t-card__title">Blue Jays momentum</h2>
+        <h2 className="t-card__title">{team.name} momentum</h2>
         <div className="st-momentum__stats">
           <div className="st-mstat">
             <span className="st-mstat__label">Streak</span>
