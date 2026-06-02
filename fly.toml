@@ -35,8 +35,12 @@ primary_region = "iad"
     path = "/api/health"
 
 [[vm]]
-  memory = "2gb"
-  cpus = 2
+  # shared-cpu-1x / 1GB: plenty for serving cached JSON to a handful of users.
+  # Always-on (min_machines_running=1) avoids cold starts. 1GB headroom keeps
+  # pandas-based WPA/Statcast cache rebuilds from OOMing (512MB risks it).
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  cpus = 1
 
 [mounts]
   source = "mlb_cache"
