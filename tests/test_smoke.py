@@ -1,10 +1,8 @@
-"""Fast smoke tests: API wiring + data helpers."""
+"""Fast smoke tests: site-data build wiring + data helpers."""
 
 from __future__ import annotations
 
 import pandas as pd
-import pytest
-from starlette.testclient import TestClient
 
 from data_source.mlb_api import completed_game_rows
 from data_source.statcast_weekly import build_team_record_from_statcast
@@ -59,20 +57,22 @@ def test_completed_game_rows_includes_pitchers():
     assert rows[0]["away_pitcher"] == "Pitcher A"
 
 
-@pytest.fixture
-def api_client() -> TestClient:
-    from backend.app.main import app
+def test_build_site_data_output_names_match_frontend():
+    """The filenames the build script writes must match what api.ts fetches."""
+    from scripts.build_site_data import output_names
 
-    return TestClient(app)
+    names = output_names(2026, teams=["TOR", "NYY"])
+    assert "today_TOR.json" in names
+    assert "players_TOR_2026.json" in names
+    assert "standings_TOR_2026.json" in names
+    assert "players_NYY_2026.json" in names
+    assert len(names) == 6
 
 
-def test_api_health(api_client: TestClient):
-    r = api_client.get("/api/health")
-    assert r.status_code == 200
-    assert r.json().get("status") == "ok"
+def test_build_site_data_covers_selectable_teams():
+    from config import SELECTABLE_TEAMS
+    from scripts.build_site_data import output_names
 
-
-def test_api_team(api_client: TestClient):
-    r = api_client.get("/api/team")
-    assert r.status_code == 200
-    assert r.json().get("team") == "Toronto Blue Jays"
+    names = output_names(2026)
+    for ab in SELECTABLE_TEAMS:
+        assert f"today_{ab}.json" in names

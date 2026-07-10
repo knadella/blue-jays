@@ -1,22 +1,25 @@
-/** In dev, default to same-origin so Vite can proxy `/api` → FastAPI (no CORS, no prod URL). */
-const API_BASE =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ??
-  (import.meta.env.DEV ? "" : "http://localhost:8000");
+/**
+ * The site is fully static: scripts/build_site_data.py precomputes every
+ * payload as JSON under `data/` next to the app bundle (a GitHub Actions cron
+ * republishes after games complete). Fetches here are same-origin static file
+ * reads — BASE_URL is "/" in dev and "/<repo>/" on GitHub Pages.
+ */
+function dataUrl(name: string): string {
+  return `${import.meta.env.BASE_URL}data/${name}`;
+}
 
-const _viteApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
-if (import.meta.env.DEV && _viteApiUrl) {
-  const u = _viteApiUrl.replace(/\/$/, "");
-  const local =
-    u.startsWith("http://127.0.0.1:") ||
-    u.startsWith("http://localhost:") ||
-    u === "http://127.0.0.1" ||
-    u === "http://localhost";
-  if (!local) {
-    console.warn(
-      "[mlb] VITE_API_URL is set to a non-loopback URL in dev. The browser will skip the Vite /api proxy (hangs, CORS, or wrong data). Remove VITE_API_URL from repo-root .env / .env.local for local work.",
-      u,
+async function fetchDataFile<T>(name: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(dataUrl(name), { signal });
+  // The dev server falls back to index.html for unknown paths, so a missing
+  // file can come back as 200 text/html — treat anything non-JSON as absent.
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!response.ok || !contentType.includes("json")) {
+    throw new Error(
+      `Missing site data ${name} (HTTP ${response.status}). ` +
+        "In dev, generate it with: python scripts/build_site_data.py",
     );
   }
+  return response.json();
 }
 
 
@@ -100,12 +103,7 @@ export interface TodayResponse {
 }
 
 export async function fetchToday(team: string, signal?: AbortSignal): Promise<TodayResponse> {
-  const url = `${API_BASE}/api/today?team=${encodeURIComponent(team)}`;
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(`Today HTTP ${response.status}. Is the API running on 127.0.0.1:8000?`);
-  }
-  return response.json();
+  return fetchDataFile<TodayResponse>(`today_${team}.json`, signal);
 }
 
 
@@ -191,12 +189,7 @@ export async function fetchPlayers(
   team: string,
   signal?: AbortSignal,
 ): Promise<PlayersResponse> {
-  const url = `${API_BASE}/api/players?season=${season}&team=${encodeURIComponent(team)}`;
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(`Players HTTP ${response.status}. Is the API running on 127.0.0.1:8000?`);
-  }
-  return response.json();
+  return fetchDataFile<PlayersResponse>(`players_${team}_${season}.json`, signal);
 }
 
 
@@ -244,12 +237,7 @@ export async function fetchStandings(
   team: string,
   signal?: AbortSignal,
 ): Promise<StandingsResponse> {
-  const url = `${API_BASE}/api/standings?season=${season}&team=${encodeURIComponent(team)}`;
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(`Standings HTTP ${response.status}. Is the API running on 127.0.0.1:8000?`);
-  }
-  return response.json();
+  return fetchDataFile<StandingsResponse>(`standings_${team}_${season}.json`, signal);
 }
 
 

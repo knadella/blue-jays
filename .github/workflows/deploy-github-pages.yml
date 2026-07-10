@@ -1,16 +1,24 @@
-# Deploy the Vite app in frontend/ to GitHub Pages via the Actions deployer.
+# Build the site data (Python) + frontend (Vite) and deploy to GitHub Pages.
 #
-# Pages must be set to: Settings → Pages → Source = "GitHub Actions"
-# Secrets: VITE_API_URL or API_BASE_URL (Fly API root).
-# Fly CORS: allow https://<user>.github.io
-name: Deploy frontend to GitHub Pages
+# The site is fully static — there is no backend server. scripts/build_site_data.py
+# precomputes every JSON payload the frontend fetches; the cron below republishes
+# after games complete so the data stays fresh.
+#
+# Pages must be set to: Settings → Pages → Source = "GitHub Actions".
+# No secrets required.
+#
+# Note: GitHub disables cron schedules after 60 days without repo activity —
+# if the site goes stale in a new season, re-enable this workflow under Actions.
+name: Build data + deploy to GitHub Pages
 
 on:
   push:
     branches: ["main"]
-    paths:
-      - "frontend/**"
-      - ".github/workflows/deploy-github-pages.yml"
+  schedule:
+    # 10:00 UTC (~6 AM ET): after the last night game finishes.
+    - cron: "0 10 * * *"
+    # 20:30 UTC (~4:30 PM ET): pick up afternoon/day games same evening.
+    - cron: "30 20 * * *"
   workflow_dispatch:
 
 permissions:
@@ -25,8 +33,31 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # Per-game WPA tallies live under .cache/game_wpa/. Restoring the most
+      # recent cache means each run only computes newly completed games; a
+      # cache miss just recomputes the season from StatsAPI (a few minutes).
+      - name: Restore WPA cache
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: site-data-${{ github.run_id }}
+          restore-keys: |
+            site-data-
+
+      - name: Build site data
+        run: python scripts/build_site_data.py --out-dir frontend/public/data
 
       - uses: actions/setup-node@v4
         with:
@@ -34,29 +65,19 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install and build
+      - name: Build frontend
         working-directory: frontend
         env:
-          SECRET_VITE: ${{ secrets.VITE_API_URL }}
-          SECRET_API: ${{ secrets.API_BASE_URL }}
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
         run: |
           set -euo pipefail
-          if [ -n "${SECRET_VITE}" ]; then
-            export VITE_API_URL="${SECRET_VITE}"
-          elif [ -n "${SECRET_API}" ]; then
-            export VITE_API_URL="${SECRET_API}"
-            echo "Using API_BASE_URL as VITE_API_URL for build."
-          else
-            echo "::error::Set repository secret VITE_API_URL or API_BASE_URL (your Fly API root, e.g. https://my-app.fly.dev)"
-            exit 1
-          fi
           npm ci
           npm run build
           test -f dist/index.html || { echo "::error::Build did not produce dist/index.html"; exit 1; }
-          test -s dist/index.html || { echo "::error::dist/index.html is empty"; exit 1; }
           test -f dist/.nojekyll || { echo "::error::Missing dist/.nojekyll — add frontend/public/.nojekyll"; exit 1; }
           grep -q 'type="module"' dist/index.html || { echo "::error::dist/index.html is not the Vite SPA (no module script)"; exit 1; }
+          ls dist/data/players_*.json >/dev/null 2>&1 || { echo "::error::No players_*.json in dist/data — site data build failed silently"; exit 1; }
+          ls dist/data/standings_*.json >/dev/null 2>&1 || { echo "::error::No standings_*.json in dist/data"; exit 1; }
 
       - uses: actions/upload-pages-artifact@v3
         with:

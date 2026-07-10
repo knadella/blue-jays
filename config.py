@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from urllib.parse import urlparse
 
 
 def _env_int(name: str, default: int) -> int:
@@ -14,71 +13,9 @@ def _env_int(name: str, default: int) -> int:
     return int(raw)
 
 
-def _env_bool(name: str, *, default: bool = False) -> bool:
-    raw = os.getenv(name, "").strip().lower()
-    if raw in ("1", "true", "yes", "on"):
-        return True
-    if raw in ("0", "false", "no", "off"):
-        return False
-    return default
-
-
-_RUNNING_ON_FLY = bool(os.getenv("FLY_ALLOC_ID", "").strip())
-
 DEFAULT_SEASON = _env_int("MLB_SEASON", 2026)
 
-# If set, POST /api/admin/* requires header X-Admin-Key: <value> (recommended in production).
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip() or None
-
-
-def _normalize_cors_origin(raw: str) -> str:
-    o = raw.strip().strip('"').strip("'")
-    if not o:
-        return ""
-    if "://" not in o:
-        o = f"https://{o}"
-    p = urlparse(o)
-    if p.scheme in ("http", "https") and p.netloc:
-        return f"{p.scheme}://{p.netloc}"
-    return o.rstrip("/")
-
-
-def _parse_cors_origins() -> list[str]:
-    raw = os.getenv(
-        "CORS_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173",
-    )
-    seen: set[str] = set()
-    out: list[str] = []
-    for part in raw.split(","):
-        n = _normalize_cors_origin(part)
-        if n and n not in seen:
-            seen.add(n)
-            out.append(n)
-    return out
-
-
-CORS_ORIGINS = _parse_cors_origins()
-
-MLB_LOCAL_SITE = _env_bool("MLB_LOCAL_SITE", default=False)
-
-_gh_pages_env = os.getenv("ENABLE_GITHUB_PAGES_CORS", "").strip().lower()
-if MLB_LOCAL_SITE:
-    _ENABLE_GH_PAGES = False
-elif _gh_pages_env in ("1", "true", "yes", "on"):
-    _ENABLE_GH_PAGES = True
-elif _gh_pages_env in ("0", "false", "no", "off"):
-    _ENABLE_GH_PAGES = False
-else:
-    _ENABLE_GH_PAGES = _RUNNING_ON_FLY
-
-GITHUB_PAGES_CORS_ORIGIN_REGEX = (
-    r"^https://[a-zA-Z0-9-]+\.github\.io$"
-    if _ENABLE_GH_PAGES
-    else None
-)
-
-# Generic per-app cache root (overridden when a Fly volume is mounted at /data).
+# Per-app cache root (per-game WPA tallies, weekly caches, payloads).
 _CACHE_ENV = os.getenv("APP_CACHE_DIR", "").strip()
 APP_CACHE_DIR = Path(_CACHE_ENV).expanduser() if _CACHE_ENV else Path(".cache")
 

@@ -15,6 +15,10 @@ Live at **[knadella.github.io/blue-jays](https://knadella.github.io/blue-jays/)*
 
 ## Architecture
 
+The site is **fully static** — there is no backend server. A GitHub Actions
+cron precomputes every payload the frontend needs and publishes it as JSON
+alongside the app bundle on GitHub Pages. Hosting cost: $0.
+
 ```text
 data/win_expectancy/we_table.json         empirical WE built from 4 seasons of Statcast
         ↑ scripts/pull_statcast_seasons.py   (one-shot; pulls 2021–2024 via pybaseball)
@@ -23,14 +27,16 @@ data/win_expectancy/we_table.json         empirical WE built from 4 seasons of S
 backend/app/services/wpa.py               per-play WPA from MLB StatsAPI play-by-play
 backend/app/services/game_story.py        builds the Today payload
 backend/app/services/player_season.py     per-game cache + season aggregator
+backend/app/services/standings.py         division table, momentum, quality-of-competition
 
-backend/app/main.py
-  GET /api/health
-  GET /api/today                          most recent completed Blue Jays game
-  GET /api/players?season=YYYY            season-long net WPA per player
+scripts/build_site_data.py                runs the services above and writes, per team:
+  frontend/public/data/today_{TEAM}.json
+  frontend/public/data/players_{TEAM}_{season}.json
+  frontend/public/data/standings_{TEAM}_{season}.json
 
+frontend/src/api.ts                       fetches those static JSON files (same origin)
 frontend/src/App.tsx                      mobile-first vertical card stack
-                                          bottom tab bar: Today / Season players
+                                          bottom tab bar: Today / Season players / Standings
 ```
 
 WPA is the change in win expectancy a play produced, signed for the batting
@@ -44,19 +50,23 @@ outcome.
 ## Local development
 
 ```bash
-# Backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-SKIP_DASHBOARD_WARMUP=1 STATCAST_REQUIRE_LOCAL=1 \
-  uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
 
-# Frontend (separate terminal)
-cd frontend && npm install && npm run dev
+# Generate the static data, then start Vite (one command):
+npm run dev
 ```
 
-Frontend defaults to same-origin in dev so Vite proxies `/api` → FastAPI.
-Open <http://127.0.0.1:5173>.
+Or run the steps separately:
+
+```bash
+python scripts/build_site_data.py          # → frontend/public/data/*.json
+cd frontend && npm install && npm run dev  # Vite serves public/data at /data
+```
+
+Open <http://127.0.0.1:5173>. To refresh data after a game completes, re-run
+the build script — Vite picks up the new files on the next fetch.
 
 Tests: `.venv/bin/python -m pytest tests/`.
 
@@ -75,53 +85,35 @@ not commit). Final table is ~530 KB.
 
 ## Deploy
 
-### Backend on Fly.io
+Everything runs through one workflow,
+`.github/workflows/deploy-github-pages.yml`:
 
-`fly.toml` configures one always-on machine in `iad` with a 3 GB persistent
-volume mounted at `/data`. The Dockerfile bakes the WE table into the image
-so the API works on a cold container; per-game WPA caches live on `/data`
-and survive deploys.
+1. `scripts/build_site_data.py` computes the JSON payloads (per-game WPA
+   tallies are restored from `actions/cache`, so only newly completed games
+   are recomputed).
+2. Vite builds `frontend/` with the data baked into `dist/data/`.
+3. The artifact deploys to GitHub Pages.
 
-```bash
-fly deploy
-```
+It triggers on push to `main`, on `workflow_dispatch`, and on a cron —
+10:00 UTC (after night games) and 20:30 UTC (after day games). Data is as
+fresh as the last run; if a build fails (e.g. StatsAPI outage), the previous
+deploy keeps serving.
 
-Production env (set as Fly secrets):
+Setup: Settings → Pages → Source = "GitHub Actions". No secrets required.
 
-| Variable | Purpose |
-|---|---|
-| `ADMIN_API_KEY` | If set, `POST /api/admin/*` requires header `X-Admin-Key`. |
-| `CORS_ORIGINS` | Comma-separated allowed browser origins (paths stripped). |
-| `MLB_SEASON` | Default season for `?season=` queries. |
-| `APP_CACHE_DIR` | Set to `/data` in `fly.toml` so caches persist across deploys. |
-
-### Frontend on GitHub Pages
-
-The workflow `.github/workflows/deploy-github-pages.yml` builds `frontend/`
-on push to `main` and publishes to Pages.
-
-Required secrets:
-
-- `VITE_API_URL` — Fly API base, no trailing slash (e.g. `https://mlb-forecast-api.fly.dev`).
-
-### Scheduled jobs (GitHub Actions)
-
-| Workflow | Schedule (UTC) | What it does |
-|---|---|---|
-| `schedule-refresh-statcast.yml` | `30 10 * * *` | Pulls incremental Savant Statcast for the day; warms the weekly cache. |
-| `schedule-prewarm.yml` | `0 12 * * *` | Hits `/api/today` and `/api/players?season=<current-year>` so the morning's first user load is sub-second. |
-
-Both require secret `API_BASE_URL`. The Statcast refresh additionally uses
-`ADMIN_API_KEY` if the API enforces it.
+Caveat: GitHub disables cron schedules after ~60 days without repo activity.
+If the site goes stale at the start of a new season, re-enable the workflow
+from the Actions tab (GitHub emails a warning first).
 
 ## What lives where on disk
 
 ```text
-data/win_expectancy/we_table.json         committed; baked into Fly image
+data/win_expectancy/we_table.json         committed; read by wpa.py
+frontend/public/data/*.json               generated by build_site_data.py (gitignored)
 data/statcast_local/{YYYY}_TOR.parquet    optional local Statcast extracts
 .cache/statcast_seasons/{YYYY}.parquet    one-shot pulls for WE rebuild (gitignored)
-.cache/game_wpa/{game_pk}.json            per-game WPA tallies (Fly: /data/game_wpa)
-.cache/weekly_cache/{YYYY}_TOR.json       Statcast weekly summary cache
+.cache/game_wpa/{TEAM}/{game_pk}.json     per-game WPA tallies (CI: actions/cache)
+.cache/weekly_cache/{YYYY}_TOR.json       Statcast weekly summary cache (scripts only)
 ```
 
 ## Notes
@@ -131,6 +123,6 @@ data/statcast_local/{YYYY}_TOR.parquet    optional local Statcast extracts
   to within ~0.05 of canonical WE values; B9-home-leading cells are missing
   because games end when the home team takes/keeps a lead in the bottom of
   the ninth — the final-play-anchor logic in `wpa.py` handles this.
-- `data_source/savant_csv.py` and `data_source/statcast_weekly.py` are
-  retained for the future Statcast/per-player drill-down. They power the
-  daily refresh workflow today.
+- `data_source/savant_csv.py`, `data_source/statcast_weekly.py`, and
+  `backend/app/services/weekly_actuals.py` are retained for a future
+  Statcast/per-player drill-down. They are not part of the site build.

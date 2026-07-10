@@ -1,4 +1,4 @@
-"""Pydantic schemas exposed by the FastAPI backend."""
+"""Pydantic schemas for the payloads published by scripts/build_site_data.py."""
 
 from __future__ import annotations
 
@@ -168,18 +168,6 @@ class WeeklyActualsResponse(BaseModel):
     pitching_whiff_zone_grid: Optional[WhiffZoneGrid] = None
     pitching_barrel_grid: Optional[BarrelGrid] = None
     pitching_spray_grid: Optional[SprayGrid] = None
-
-
-# ---------------------------------------------------------------------------
-# Admin / refresh schemas
-# ---------------------------------------------------------------------------
-
-
-class RefreshResponse(BaseModel):
-    status: str
-    season: int
-    games_completed: int
-    timestamp: str
 
 
 # ---------------------------------------------------------------------------
